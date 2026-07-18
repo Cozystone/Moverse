@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Bell,
   CalendarDays,
   ChevronRight,
   CircleCheckBig,
@@ -16,14 +15,13 @@ import {
   MessageCircle,
   MoonStar,
   Plus,
-  Search,
   ShieldCheck,
   SunMedium,
   Users,
   X,
   Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DEMO_SPOTS } from "@/data/demo-data";
 import { useMoverseStore } from "@/store/use-moverse-store";
 import { MODE_LABEL, SPORT_META, type MoveEvent, type MoveSpot } from "@/types/moverse";
@@ -38,7 +36,7 @@ const WorldMap = dynamic(() => import("./world-map").then((mod) => mod.WorldMap)
   loading: () => <MapLoading />,
 });
 
-type MainTab = "map" | "activity" | "create" | "social" | "verse";
+type MainTab = "map" | "activity" | "move" | "social" | "verse";
 
 export function MoverseApp() {
   const store = useMoverseStore();
@@ -56,6 +54,7 @@ export function MoverseApp() {
   const [moveProgress, setMoveProgress] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [isNightPreview, setIsNightPreview] = useState(false);
+  const energyMilestoneRef = useRef(0);
 
   useEffect(() => {
     // Persist middleware can finish before the first component subscription on a
@@ -68,14 +67,18 @@ export function MoverseApp() {
     if (!moveActive || movePaused) return;
     const timer = window.setInterval(() => {
       setMoveSeconds((value) => value + 6);
-      setMoveProgress((value) => {
-        const next = Math.min(100, value + 1.8);
-        if (Math.floor(next / 18) > Math.floor(value / 18)) store.addEnergy(2);
-        return next;
-      });
+      setMoveProgress((value) => Math.min(100, value + 1.8));
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [moveActive, movePaused, store]);
+  }, [moveActive, movePaused]);
+
+  useEffect(() => {
+    if (!moveActive) return;
+    const milestone = Math.floor(moveProgress / 18);
+    if (milestone <= energyMilestoneRef.current) return;
+    store.addEnergy((milestone - energyMilestoneRef.current) * 2);
+    energyMilestoneRef.current = milestone;
+  }, [moveActive, moveProgress, store]);
 
   useEffect(() => {
     if (!toast) return;
@@ -102,9 +105,27 @@ export function MoverseApp() {
   };
 
   const handleTab = (tab: MainTab) => {
+    if (tab === "move") {
+      if (isNightPreview) {
+        setToast("21:00 이후에는 대면 MOVE를 시작할 수 없고 다음 일정만 예약할 수 있어요.");
+        setActiveTab("map");
+        return;
+      }
+      if (!moveActive) {
+        energyMilestoneRef.current = 0;
+        setMoveSeconds(0);
+        setMoveProgress(0);
+      }
+      setSelectedEvent(null);
+      setSelectedSpot(null);
+      setMoveActive(true);
+      setMovePaused(false);
+      setActiveTab("map");
+      return;
+    }
+
     setActiveTab(tab);
     if (tab === "activity") setActivityOpen(true);
-    if (tab === "create") setCreateOpen(true);
     if (tab === "social") setSocialOpen(true);
     if (tab === "verse") setVerseOpen(true);
   };
@@ -174,42 +195,37 @@ export function MoverseApp() {
         <header className="map-header">
           <div className="brand-chip"><span className="brand-orbit small">M</span><strong>MOVERSE</strong></div>
           <div className="resource-row">
-            <button className="resource-chip energy" onClick={() => setToast("Move Energy는 걷고 달리며 모아요.")}>
-              <Zap size={14} fill="currentColor" /><strong>{store.energy}</strong>
+            <button
+              className="resource-chip energy"
+              aria-label={`오늘의 Move Energy ${store.energy}/100`}
+              title="Move Energy · 오늘 움직임"
+              onClick={() => setToast(`Move Energy ${store.energy}/100 · 걷기와 활동으로 채우며 매일 갱신돼요.`)}
+            >
+              <Zap size={14} fill="currentColor" />
+              <span className="resource-copy"><small>오늘</small><strong>{store.energy}/100</strong></span>
             </button>
-            <button className="resource-chip coin" onClick={() => setToast("무브 코인으로 새로운 활동을 열 수 있어요.")}>
-              <Coins size={14} /><strong>{store.coin}</strong>
+            <button
+              className="resource-chip coin"
+              aria-label={`Move Coin ${store.coin} C`}
+              title="Move Coin · 활동 보상"
+              onClick={() => setToast(`Move Coin ${store.coin} C · 활동 개설과 참가 보증금에 사용해요.`)}
+            >
+              <Coins size={14} />
+              <span className="resource-copy"><small>코인</small><strong>{store.coin} C</strong></span>
             </button>
-            <button className="header-icon" aria-label="알림"><Bell size={19} /><i /></button>
           </div>
         </header>
 
-        <div className="map-utility-row">
-          <button className="close-time-chip" onClick={() => setIsNightPreview((value) => !value)}>
+        <div className="map-context-bar">
+          <div className="map-context-place" aria-label="현재 지역: 여의도 한강공원">
+            <MapPinned size={17} />
+            <span><strong>여의도 한강공원</strong><small>주변 활동 {store.events.length}</small></span>
+          </div>
+          <button className="close-time-button" onClick={() => setIsNightPreview((value) => !value)}>
             {isNightPreview ? <MoonStar size={15} /> : <SunMedium size={15} />}
-            <span>{isNightPreview ? "대면 활동 종료" : "활동 스팟 종료까지 1시간 18분"}</span>
+            <span>{isNightPreview ? "오늘 종료" : "21:00 종료"}</span>
           </button>
-          <button className="map-search-button" aria-label="활동 검색"><Search size={19} /></button>
         </div>
-
-        <div className="map-place-sign" aria-label="현재 지역: 여의도 한강공원">
-          <strong>여의도 한강공원</strong>
-          <small>주변 활동 {store.events.length}개</small>
-        </div>
-
-        {!isNightPreview && !moveActive && (
-          <motion.button
-            className="start-move-button"
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            whileTap={{ scale: 0.96 }}
-            onClick={() => { setMoveActive(true); setSelectedEvent(null); setSelectedSpot(null); }}
-          >
-            <span><Footprints size={22} /></span>
-            <p><small>걷기만 해도 에너지가 쌓여요</small><strong>움직이기</strong></p>
-            <ChevronRight size={20} />
-          </motion.button>
-        )}
 
         <AnimatePresence>
           {moveActive && (
@@ -243,7 +259,7 @@ export function MoverseApp() {
           </motion.div>
         )}
 
-        <BottomNav active={activeTab} onSelect={handleTab} />
+        <BottomNav active={activeTab} energy={store.energy} onSelect={handleTab} />
 
         <AnimatePresence>
           {activityOpen && (
@@ -252,6 +268,11 @@ export function MoverseApp() {
               allEvents={store.events}
               onClose={() => { setActivityOpen(false); setActiveTab("map"); }}
               onEvent={openEvent}
+              onCreate={() => {
+                setActivityOpen(false);
+                setCreateOpen(true);
+                setActiveTab("map");
+              }}
             />
           )}
           {verseOpen && (
@@ -304,19 +325,24 @@ export function MoverseApp() {
   );
 }
 
-function BottomNav({ active, onSelect }: { active: MainTab; onSelect: (tab: MainTab) => void }) {
+function BottomNav({ active, energy, onSelect }: { active: MainTab; energy: number; onSelect: (tab: MainTab) => void }) {
   const items: { key: MainTab; label: string; icon: React.ReactNode }[] = [
     { key: "map", label: "지도", icon: <Map /> },
     { key: "activity", label: "활동", icon: <CalendarDays /> },
-    { key: "create", label: "만들기", icon: <Plus /> },
+    { key: "move", label: "MOVE", icon: <Footprints /> },
     { key: "social", label: "메이트", icon: <MessageCircle /> },
     { key: "verse", label: "성장", icon: <CircleUserRound /> },
   ];
   return (
     <nav className="bottom-nav" aria-label="주요 메뉴">
       {items.map((item) => (
-        <button key={item.key} className={`${active === item.key ? "active" : ""} ${item.key === "create" ? "create-nav" : ""}`} onClick={() => onSelect(item.key)}>
-          <span>{item.icon}</span><small>{item.label}</small>
+        <button
+          key={item.key}
+          className={`${active === item.key ? "active" : ""} ${item.key === "move" ? "move-nav" : ""}`}
+          aria-label={item.key === "move" ? `MOVE 시작, 오늘 에너지 ${energy}/100` : item.label}
+          onClick={() => onSelect(item.key)}
+        >
+          <span>{item.icon}{item.key === "move" && <b>{energy}</b>}</span><small>{item.label}</small>
         </button>
       ))}
     </nav>
@@ -370,11 +396,17 @@ function MoveSession({ seconds, progress, paused, onPause, onFinish }: { seconds
   );
 }
 
-function ActivityPanel({ joined, allEvents, onClose, onEvent }: { joined: MoveEvent[]; allEvents: MoveEvent[]; onClose: () => void; onEvent: (event: MoveEvent) => void }) {
+function ActivityPanel({ joined, allEvents, onClose, onEvent, onCreate }: { joined: MoveEvent[]; allEvents: MoveEvent[]; onClose: () => void; onEvent: (event: MoveEvent) => void; onCreate: () => void }) {
   const events = joined.length ? joined : allEvents.slice(0, 3);
   return (
     <motion.section className="full-panel activity-panel" initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}>
-      <header className="panel-header"><div><small>참가 예정과 활동 기록</small><h2>활동</h2></div><button className="round-icon-btn" onClick={onClose} aria-label="활동 화면 닫기"><X /></button></header>
+      <header className="panel-header">
+        <div><small>참가 예정과 활동 기록</small><h2>활동</h2></div>
+        <div className="panel-header-actions">
+          <button className="panel-create-button" onClick={onCreate}><Plus size={16} /> 활동 열기</button>
+          <button className="round-icon-btn" onClick={onClose} aria-label="활동 화면 닫기"><X /></button>
+        </div>
+      </header>
       <div className="panel-scroll activity-content">
         <section className="next-activity-hero">
           <div className="next-label"><i /> 다음 활동</div>

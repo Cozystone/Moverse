@@ -7,6 +7,7 @@ import type {
   FeatureCollection,
   LineString,
   Point,
+  Polygon,
 } from "geojson";
 import type {
   GeoJSONSource,
@@ -219,6 +220,24 @@ const SPOT_COLOR: Record<WorldMapSpotLevel, string> = {
   landmark: "#005a42",
 };
 
+const SPOT_STRUCTURE_HEIGHT: Record<WorldMapSpotLevel, number> = {
+  seed: 28,
+  trail: 40,
+  active: 52,
+  pulse: 64,
+  landmark: 78,
+};
+
+const EVENT_STRUCTURE_HEIGHT: Record<
+  NonNullable<WorldMapEvent["status"]>,
+  number
+> = {
+  scheduled: 34,
+  "check-in": 48,
+  active: 60,
+  completed: 24,
+};
+
 type SpotFeatureProperties = {
   id: string;
   label: string;
@@ -243,7 +262,22 @@ type UserFeatureProperties = {
   moving: number;
 };
 
+type StructureFeatureProperties = {
+  id: string;
+  kind: "spot" | "event";
+  color: string;
+  base: number;
+  height: number;
+  selected: number;
+  live: number;
+};
+
 const EMPTY_POINT_COLLECTION: FeatureCollection<Point> = {
+  type: "FeatureCollection",
+  features: [],
+};
+
+const EMPTY_POLYGON_COLLECTION: FeatureCollection<Polygon> = {
   type: "FeatureCollection",
   features: [],
 };
@@ -317,6 +351,28 @@ function makeLineFeature(
     properties: {},
     geometry: { type: "LineString", coordinates: [...coordinates] },
   };
+}
+
+function polygonAround(
+  [longitude, latitude]: WorldMapCoordinate,
+  radiusMeters: number,
+  sides: number,
+  rotationRadians = 0,
+): Polygon {
+  const latitudeRadians = (latitude * Math.PI) / 180;
+  const latitudeScale = radiusMeters / 111_320;
+  const longitudeScale =
+    radiusMeters / (111_320 * Math.max(Math.cos(latitudeRadians), 0.2));
+  const ring: WorldMapCoordinate[] = Array.from({ length: sides }, (_, index) => {
+    const angle = rotationRadians + (index / sides) * Math.PI * 2;
+    return [
+      longitude + Math.cos(angle) * longitudeScale,
+      latitude + Math.sin(angle) * latitudeScale,
+    ];
+  });
+
+  ring.push([...ring[0]] as WorldMapCoordinate);
+  return { type: "Polygon", coordinates: [ring] };
 }
 
 function createKeylessStyle(isNight: boolean): StyleSpecification {
@@ -416,6 +472,73 @@ function createEventCollection(
   };
 }
 
+function createStructureCollection(
+  spots: readonly WorldMapSpot[],
+  events: readonly WorldMapEvent[],
+  getEventCoordinate: (
+    event: WorldMapEvent,
+    index: number,
+  ) => WorldMapCoordinate,
+  selectedSpotId: string | null | undefined,
+  selectedEventId: string | null | undefined,
+): FeatureCollection<Polygon, StructureFeatureProperties> {
+  const spotFeatures: Feature<Polygon, StructureFeatureProperties>[] = spots.map(
+    (spot) => {
+      const level = spot.level ?? "active";
+      return {
+        type: "Feature",
+        id: spot.id,
+        properties: {
+          id: spot.id,
+          kind: "spot",
+          color: SPOT_COLOR[level],
+          base: 0.8,
+          height: SPOT_STRUCTURE_HEIGHT[level],
+          selected: selectedSpotId === spot.id ? 1 : 0,
+          live: 0,
+        },
+        geometry: polygonAround(
+          [spot.longitude, spot.latitude],
+          14,
+          8,
+          Math.PI / 8,
+        ),
+      };
+    },
+  );
+
+  const eventFeatures: Feature<Polygon, StructureFeatureProperties>[] = events.map(
+    (event, index) => {
+      const status = event.status ?? "scheduled";
+      const live = status === "active" || status === "check-in";
+      return {
+        type: "Feature",
+        id: event.id,
+        properties: {
+          id: event.id,
+          kind: "event",
+          color: SPORT_META[event.sport].color,
+          base: 0.8,
+          height: EVENT_STRUCTURE_HEIGHT[status],
+          selected: selectedEventId === event.id ? 1 : 0,
+          live: live ? 1 : 0,
+        },
+        geometry: polygonAround(
+          getEventCoordinate(event, index),
+          10.5,
+          6,
+          Math.PI / 6,
+        ),
+      };
+    },
+  );
+
+  return {
+    type: "FeatureCollection",
+    features: [...spotFeatures, ...eventFeatures],
+  };
+}
+
 function createUserCollection(
   position: WorldMapCoordinate,
   user: WorldMapUser,
@@ -434,6 +557,64 @@ function createUserCollection(
       },
     ],
   };
+}
+
+function addStructureLayers(map: MapLibreMap, isNight: boolean) {
+  try {
+    map.addSource("moverse-structures", {
+      type: "geojson",
+      maxzoom: 19,
+      data: EMPTY_POLYGON_COLLECTION,
+    });
+
+    map.addLayer(
+      {
+        id: "moverse-spots-3d",
+        type: "fill-extrusion",
+        source: "moverse-structures",
+        minzoom: 14.2,
+        filter: ["==", ["get", "kind"], "spot"],
+        paint: {
+          "fill-extrusion-color": ["get", "color"],
+          "fill-extrusion-opacity": isNight ? 0.86 : 0.92,
+          "fill-extrusion-base": ["get", "base"],
+          "fill-extrusion-height": [
+            "+",
+            ["get", "height"],
+            ["*", ["get", "selected"], 14],
+            ["*", ["get", "live"], 8],
+          ],
+          "fill-extrusion-vertical-gradient": true,
+        },
+      },
+      "moverse-spots-symbol",
+    );
+
+    map.addLayer(
+      {
+        id: "moverse-events-3d",
+        type: "fill-extrusion",
+        source: "moverse-structures",
+        minzoom: 14.2,
+        filter: ["==", ["get", "kind"], "event"],
+        paint: {
+          "fill-extrusion-color": ["get", "color"],
+          "fill-extrusion-opacity": isNight ? 0.88 : 0.94,
+          "fill-extrusion-base": ["get", "base"],
+          "fill-extrusion-height": [
+            "+",
+            ["get", "height"],
+            ["*", ["get", "selected"], 14],
+            ["*", ["get", "live"], 8],
+          ],
+          "fill-extrusion-vertical-gradient": true,
+        },
+      },
+      "moverse-events-symbol",
+    );
+  } catch {
+    // Keep the existing 2D point layers as a complete fallback on older WebGL devices.
+  }
 }
 
 function addMapLayers(
@@ -638,6 +819,8 @@ function addMapLayers(
     paint: { "circle-radius": 26, "circle-opacity": 0 },
   });
 
+  addStructureLayers(map, isNight);
+
   map.addSource("moverse-user", {
     type: "geojson",
     data: EMPTY_POINT_COLLECTION,
@@ -794,6 +977,23 @@ export function WorldMap({
   const eventCollection = useMemo(
     () => createEventCollection(events, eventCoordinate, actualSelectedEventId),
     [actualSelectedEventId, eventCoordinate, events],
+  );
+  const structureCollection = useMemo(
+    () =>
+      createStructureCollection(
+        spots,
+        events,
+        eventCoordinate,
+        actualSelectedSpotId,
+        actualSelectedEventId,
+      ),
+    [
+      actualSelectedEventId,
+      actualSelectedSpotId,
+      eventCoordinate,
+      events,
+      spots,
+    ],
   );
   const userCollection = useMemo(
     () =>
@@ -959,6 +1159,20 @@ export function WorldMap({
       ]);
       map.setPaintProperty("moverse-events-label", "text-color", isNight ? "#ffffff" : "#071b16");
       map.setPaintProperty("moverse-events-label", "text-halo-color", isNight ? "#07161a" : "#ffffff");
+      if (map.getLayer("moverse-spots-3d")) {
+        map.setPaintProperty(
+          "moverse-spots-3d",
+          "fill-extrusion-opacity",
+          isNight ? 0.86 : 0.92,
+        );
+      }
+      if (map.getLayer("moverse-events-3d")) {
+        map.setPaintProperty(
+          "moverse-events-3d",
+          "fill-extrusion-opacity",
+          isNight ? 0.88 : 0.94,
+        );
+      }
       map.setPaintProperty("moverse-user-core", "circle-color", isNight ? "#d5fff0" : "#173f36");
       map.setPaintProperty("moverse-user-label", "text-color", isNight ? "#173f36" : "#ffffff");
     } catch {
@@ -986,6 +1200,16 @@ export function WorldMap({
     spotCollection,
     userCollection,
   ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || mapState !== "ready") return;
+
+    const structureSource = map.getSource("moverse-structures") as
+      | GeoJSONSource
+      | undefined;
+    structureSource?.setData(structureCollection);
+  }, [mapState, structureCollection]);
 
   const zoomIn = () => mapRef.current?.zoomIn({ duration: 320 });
   const zoomOut = () => mapRef.current?.zoomOut({ duration: 320 });
