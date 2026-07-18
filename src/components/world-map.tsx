@@ -131,6 +131,7 @@ export interface WorldMapProps {
   movingProgress?: number;
   movingLabel?: string;
   recordedRoute?: readonly WorldMapCoordinate[];
+  isTracking?: boolean;
   isUserMoving?: boolean;
   followUser?: boolean;
   gpsAccuracyMeters?: number | null;
@@ -1395,6 +1396,7 @@ export function WorldMap({
   movingProgress = 0,
   movingLabel,
   recordedRoute,
+  isTracking,
   isUserMoving,
   followUser = true,
   gpsAccuracyMeters,
@@ -1450,6 +1452,7 @@ export function WorldMap({
     userPosition ?? recordedPosition ?? locatedPosition ?? simulatedPosition;
   const initialCameraCenterRef = useRef<WorldMapCoordinate>(currentUserPosition);
   const moving = isUserMoving ?? (progress > 0 && progress < 1);
+  const tracking = isTracking ?? moving;
   const shareablePeople = useMemo(
     () =>
       people.filter(
@@ -2007,7 +2010,7 @@ export function WorldMap({
     if (
       !map ||
       mapState !== "ready" ||
-      !moving ||
+      !tracking ||
       !followUser ||
       !currentUserPosition ||
       map.isMoving()
@@ -2018,7 +2021,7 @@ export function WorldMap({
       pitch: Math.max(map.getPitch(), 46),
       duration: 360,
     });
-  }, [currentUserPosition, followUser, mapState, moving]);
+  }, [currentUserPosition, followUser, mapState, tracking]);
 
   useEffect(() => {
     if (mapState !== "ready") return;

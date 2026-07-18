@@ -393,6 +393,7 @@ export function MoverseApp() {
           isNight={isNightPreview}
           recordedRoute={recordedRoute}
           userPosition={currentGpsPosition}
+          isTracking={moveActive && !gps.isPaused}
           isUserMoving={moveActive && !gps.isPaused && gps.isMoving}
           followUser
           gpsAccuracyMeters={gps.accuracyMeters}
