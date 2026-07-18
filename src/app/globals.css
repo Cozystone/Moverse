@@ -132,11 +132,14 @@ button { -webkit-tap-highlight-color: transparent; }
 .move-session { position: absolute; z-index: 22; top: max(130px, calc(env(safe-area-inset-top) + 120px)); left: 10px; right: 10px; padding: 14px; color: #effff9; border: 1px solid rgba(255,255,255,.16); border-radius: 16px; background: var(--glass-dark); box-shadow: var(--glass-shadow); -webkit-backdrop-filter: blur(16px) saturate(116%); backdrop-filter: blur(16px) saturate(116%); }
 .move-live { display: flex; align-items: center; gap: 6px; color: #ceff72; font-size: 9px; font-weight: 800; }
 .move-live i { width: 7px; height: 7px; border-radius: 50%; background: #ceff72; box-shadow: 0 0 0 5px rgba(206,255,114,.12); animation: pulse-dot 1.4s infinite; }
+.move-live.is-weak { color: #ffcb68; }
+.move-live.is-weak i { background: #ffcb68; box-shadow: 0 0 0 5px rgba(255,203,104,.13); }
 .move-metrics { display: grid; grid-template-columns: repeat(3, 1fr); margin: 11px 0; }
 .move-metrics > div { padding-left: 11px; border-left: 1px solid rgba(255,255,255,.12); }
 .move-metrics > div:first-child { padding-left: 0; border-left: 0; }
 .move-metrics small { display: block; color: #91a59e; font-size: 9px; }
-.move-metrics strong { font-family: "Geist Mono", monospace; font-size: 20px; }
+.move-metrics strong { white-space: nowrap; font-family: "Geist Mono", monospace; font-size: 17px; letter-spacing: -.04em; }
+.move-metrics .move-distance strong { color: #f4fff9; font-size: 22px; letter-spacing: -.055em; }
 .move-metrics em { margin-left: 2px; color: #9aaeA7; font-size: 9px; font-style: normal; }
 .move-metrics .lime-number { color: #d9ff63; }
 .move-destination { padding: 9px 10px; display: flex; align-items: center; gap: 9px; background: rgba(255,255,255,.07); border-radius: 13px; }
@@ -147,6 +150,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .move-destination b { color: #d9ff63; font-family: "Geist Mono", monospace; font-size: 12px; }
 .move-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
 .move-actions button { height: 37px; border-radius: 11px; border: 1px solid rgba(255,255,255,.13); color: #dce9e5; background: rgba(255,255,255,.06); font-size: 11px; font-weight: 750; cursor: pointer; }
+.move-actions button:disabled { opacity: .42; cursor: wait; }
 .move-actions button:last-child { border: 0; color: #15281f; background: #d9ff63; }
 .night-message { position: absolute; z-index: 15; left: 12px; right: 12px; bottom: 94px; padding: 13px; display: flex; align-items: center; gap: 10px; color: #e6f0ff; border: 1px solid rgba(255,255,255,.16); border-radius: 16px; background: rgba(16,28,45,.86); -webkit-backdrop-filter: blur(16px) saturate(116%); backdrop-filter: blur(16px) saturate(116%); box-shadow: var(--glass-shadow); }
 .night-message > span { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 13px; background: #283b5b; }

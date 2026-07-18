@@ -104,6 +104,11 @@ export interface WorldMapProps {
   isNight?: boolean;
   movingProgress?: number;
   movingLabel?: string;
+  recordedRoute?: readonly WorldMapCoordinate[];
+  isTracking?: boolean;
+  followUser?: boolean;
+  gpsAccuracyMeters?: number | null;
+  routeMatched?: boolean;
   center?: WorldMapCoordinate;
   userPosition?: WorldMapCoordinate;
   user?: WorldMapUser;
@@ -280,6 +285,7 @@ type UserFeatureProperties = {
 type StructureFeatureProperties = {
   id: string;
   kind: "spot" | "event";
+  part: string;
   color: string;
   base: number;
   height: number;
@@ -293,6 +299,11 @@ const EMPTY_POINT_COLLECTION: FeatureCollection<Point> = {
 };
 
 const EMPTY_POLYGON_COLLECTION: FeatureCollection<Polygon> = {
+  type: "FeatureCollection",
+  features: [],
+};
+
+const EMPTY_LINE_COLLECTION: FeatureCollection<LineString> = {
   type: "FeatureCollection",
   features: [],
 };
@@ -368,6 +379,12 @@ function makeLineFeature(
   };
 }
 
+function makeLineData(
+  coordinates: readonly WorldMapCoordinate[],
+): Feature<LineString> | FeatureCollection<LineString> {
+  return coordinates.length >= 2 ? makeLineFeature(coordinates) : EMPTY_LINE_COLLECTION;
+}
+
 function polygonAround(
   [longitude, latitude]: WorldMapCoordinate,
   radiusMeters: number,
@@ -388,6 +405,101 @@ function polygonAround(
 
   ring.push([...ring[0]] as WorldMapCoordinate);
   return { type: "Polygon", coordinates: [ring] };
+}
+
+function polygonRingAround(
+  center: WorldMapCoordinate,
+  outerRadiusMeters: number,
+  innerRadiusMeters: number,
+  sides: number,
+  rotationRadians = 0,
+): Polygon {
+  const outerRing = polygonAround(
+    center,
+    outerRadiusMeters,
+    sides,
+    rotationRadians,
+  ).coordinates[0];
+  const innerRing = polygonAround(
+    center,
+    innerRadiusMeters,
+    sides,
+    rotationRadians,
+  ).coordinates[0]
+    .slice()
+    .reverse();
+
+  return { type: "Polygon", coordinates: [outerRing, innerRing] };
+}
+
+function offsetCoordinateMeters(
+  [longitude, latitude]: WorldMapCoordinate,
+  eastMeters: number,
+  northMeters: number,
+): WorldMapCoordinate {
+  const latitudeRadians = (latitude * Math.PI) / 180;
+  return [
+    longitude +
+      eastMeters / (111_320 * Math.max(Math.cos(latitudeRadians), 0.2)),
+    latitude + northMeters / 111_320,
+  ];
+}
+
+function mixHexColor(color: string, target: string, amount: number) {
+  const isHex = (value: string) => /^#[0-9a-f]{6}$/i.test(value);
+  if (!isHex(color) || !isHex(target)) return color;
+
+  const sourceValue = Number.parseInt(color.slice(1), 16);
+  const targetValue = Number.parseInt(target.slice(1), 16);
+  const mixChannel = (shift: number) =>
+    Math.round(
+      ((sourceValue >> shift) & 255) * (1 - amount) +
+        ((targetValue >> shift) & 255) * amount,
+    );
+
+  return `#${[16, 8, 0]
+    .map((shift) => mixChannel(shift).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+function createStructureFeature({
+  featureId,
+  entityId,
+  kind,
+  part,
+  color,
+  base,
+  height,
+  selected,
+  live,
+  geometry,
+}: {
+  featureId: string;
+  entityId: string;
+  kind: StructureFeatureProperties["kind"];
+  part: string;
+  color: string;
+  base: number;
+  height: number;
+  selected: number;
+  live: number;
+  geometry: Polygon;
+}): Feature<Polygon, StructureFeatureProperties> {
+  return {
+    type: "Feature",
+    id: featureId,
+    properties: {
+      id: entityId,
+      kind,
+      part,
+      color,
+      base,
+      height,
+      selected,
+      live,
+    },
+    geometry,
+  };
 }
 
 function createKeylessStyle(isNight: boolean): StyleSpecification {
@@ -497,54 +609,229 @@ function createStructureCollection(
   selectedSpotId: string | null | undefined,
   selectedEventId: string | null | undefined,
 ): FeatureCollection<Polygon, StructureFeatureProperties> {
-  const spotFeatures: Feature<Polygon, StructureFeatureProperties>[] = spots.map(
+  const spotFeatures: Feature<Polygon, StructureFeatureProperties>[] = spots.flatMap(
     (spot) => {
       const level = spot.level ?? "active";
-      return {
-        type: "Feature",
-        id: spot.id,
-        properties: {
-          id: spot.id,
+      const selected = selectedSpotId === spot.id ? 1 : 0;
+      const center: WorldMapCoordinate = [spot.longitude, spot.latitude];
+      const mainColor = SPOT_COLOR[level];
+      const baseColor = mixHexColor(mainColor, "#061b15", 0.48);
+      const crownColor = selected
+        ? "#ceff3d"
+        : mixHexColor(mainColor, "#dffff2", 0.3);
+      const bodyTop = SPOT_STRUCTURE_HEIGHT[level] + selected * 10;
+      const pedestalRadius =
+        level === "landmark" ? 17 : level === "pulse" ? 15.5 : 14;
+      const crownHeight = level === "landmark" ? 8 : 6;
+      const crownBase = bodyTop - 1.5;
+      const crownTop = bodyTop + crownHeight;
+      const usesTwinColumns = level !== "seed";
+      const hasBeacon =
+        selected === 1 || level === "active" || level === "pulse" || level === "landmark";
+      const features: Feature<Polygon, StructureFeatureProperties>[] = [
+        createStructureFeature({
+          featureId: `${spot.id}:pedestal`,
+          entityId: spot.id,
           kind: "spot",
-          color: SPOT_COLOR[level],
-          base: 0.8,
-          height: SPOT_STRUCTURE_HEIGHT[level],
-          selected: selectedSpotId === spot.id ? 1 : 0,
+          part: "pedestal",
+          color: baseColor,
+          base: 0.4,
+          height: 4.8,
+          selected,
           live: 0,
-        },
-        geometry: polygonAround(
-          [spot.longitude, spot.latitude],
-          14,
-          8,
-          Math.PI / 8,
-        ),
-      };
+          geometry: polygonAround(center, pedestalRadius, 10, Math.PI / 10),
+        }),
+      ];
+
+      if (usesTwinColumns) {
+        const columnOffset = level === "landmark" ? 6 : 5.2;
+        const columnRadius = level === "landmark" ? 5.2 : 4.5;
+        ([
+          ["west", -columnOffset],
+          ["east", columnOffset],
+        ] as const).forEach(([side, eastMeters]) => {
+          features.push(
+            createStructureFeature({
+              featureId: `${spot.id}:body-${side}`,
+              entityId: spot.id,
+              kind: "spot",
+              part: `body-${side}`,
+              color: mainColor,
+              base: 3.8,
+              height: bodyTop,
+              selected,
+              live: 0,
+              geometry: polygonAround(
+                offsetCoordinateMeters(center, eastMeters, 0),
+                columnRadius,
+                8,
+                Math.PI / 8,
+              ),
+            }),
+          );
+        });
+      } else {
+        features.push(
+          createStructureFeature({
+            featureId: `${spot.id}:body`,
+            entityId: spot.id,
+            kind: "spot",
+            part: "body",
+            color: mainColor,
+            base: 3.8,
+            height: bodyTop,
+            selected,
+            live: 0,
+            geometry: polygonAround(center, 7.6, 8, Math.PI / 8),
+          }),
+        );
+      }
+
+      features.push(
+        createStructureFeature({
+          featureId: `${spot.id}:crown`,
+          entityId: spot.id,
+          kind: "spot",
+          part: "crown",
+          color: crownColor,
+          base: crownBase,
+          height: crownTop,
+          selected,
+          live: 0,
+          geometry: polygonAround(
+            center,
+            pedestalRadius * 0.72,
+            10,
+            Math.PI / 10,
+          ),
+        }),
+      );
+
+      if (hasBeacon) {
+        const beaconHeight =
+          level === "landmark" ? 20 : level === "pulse" ? 15 : 11;
+        features.push(
+          createStructureFeature({
+            featureId: `${spot.id}:beacon`,
+            entityId: spot.id,
+            kind: "spot",
+            part: "beacon",
+            color: selected ? "#efffb3" : "#bfffe5",
+            base: crownTop - 0.8,
+            height: crownTop + beaconHeight,
+            selected,
+            live: 0,
+            geometry: polygonAround(
+              center,
+              level === "landmark" ? 3 : 2.4,
+              6,
+              Math.PI / 6,
+            ),
+          }),
+        );
+      }
+
+      return features;
     },
   );
 
-  const eventFeatures: Feature<Polygon, StructureFeatureProperties>[] = events.map(
+  const eventFeatures: Feature<Polygon, StructureFeatureProperties>[] = events.flatMap(
     (event, index) => {
       const status = event.status ?? "scheduled";
       const live = status === "active" || status === "check-in";
-      return {
-        type: "Feature",
-        id: event.id,
-        properties: {
-          id: event.id,
+      const selected = selectedEventId === event.id ? 1 : 0;
+      const liveValue = live ? 1 : 0;
+      const center = getEventCoordinate(event, index);
+      const mainColor = SPORT_META[event.sport].color;
+      const baseColor = mixHexColor(mainColor, "#071b16", 0.5);
+      const floorColor = mixHexColor(mainColor, "#ffffff", 0.45);
+      const rimColor = selected ? "#ceff3d" : mainColor;
+      const pylonTop =
+        EVENT_STRUCTURE_HEIGHT[status] + selected * 10 + liveValue * 8;
+      const features: Feature<Polygon, StructureFeatureProperties>[] = [
+        createStructureFeature({
+          featureId: `${event.id}:arena-base`,
+          entityId: event.id,
           kind: "event",
-          color: SPORT_META[event.sport].color,
-          base: 0.8,
-          height: EVENT_STRUCTURE_HEIGHT[status],
-          selected: selectedEventId === event.id ? 1 : 0,
-          live: live ? 1 : 0,
-        },
-        geometry: polygonAround(
-          getEventCoordinate(event, index),
-          10.5,
-          6,
-          Math.PI / 6,
-        ),
-      };
+          part: "arena-base",
+          color: baseColor,
+          base: 0.4,
+          height: 3.6,
+          selected,
+          live: liveValue,
+          geometry: polygonAround(center, 16, 12, Math.PI / 12),
+        }),
+        createStructureFeature({
+          featureId: `${event.id}:arena-floor`,
+          entityId: event.id,
+          kind: "event",
+          part: "arena-floor",
+          color: floorColor,
+          base: 3.4,
+          height: 4.8,
+          selected,
+          live: liveValue,
+          geometry: polygonAround(center, 8.8, 12, Math.PI / 12),
+        }),
+        createStructureFeature({
+          featureId: `${event.id}:arena-rim`,
+          entityId: event.id,
+          kind: "event",
+          part: "arena-rim",
+          color: rimColor,
+          base: 3.4,
+          height: 10 + selected * 2 + liveValue * 2,
+          selected,
+          live: liveValue,
+          geometry: polygonRingAround(center, 14, 9, 12, Math.PI / 12),
+        }),
+      ];
+
+      for (let pylonIndex = 0; pylonIndex < 4; pylonIndex += 1) {
+        const angle = Math.PI / 4 + (pylonIndex * Math.PI) / 2;
+        features.push(
+          createStructureFeature({
+            featureId: `${event.id}:pylon-${pylonIndex}`,
+            entityId: event.id,
+            kind: "event",
+            part: "arena-pylon",
+            color: mainColor,
+            base: 3.5,
+            height: pylonTop,
+            selected,
+            live: liveValue,
+            geometry: polygonAround(
+              offsetCoordinateMeters(
+                center,
+                Math.cos(angle) * 11.2,
+                Math.sin(angle) * 11.2,
+              ),
+              2.2,
+              6,
+              Math.PI / 6,
+            ),
+          }),
+        );
+      }
+
+      if (live || selected === 1) {
+        features.push(
+          createStructureFeature({
+            featureId: `${event.id}:arena-beacon`,
+            entityId: event.id,
+            kind: "event",
+            part: "arena-beacon",
+            color: selected ? "#efffb3" : "#bfffe5",
+            base: 4.6,
+            height: pylonTop + 9,
+            selected,
+            live: liveValue,
+            geometry: polygonAround(center, 1.9, 6, Math.PI / 6),
+          }),
+        );
+      }
+
+      return features;
     },
   );
 
@@ -593,12 +880,7 @@ function addStructureLayers(map: MapLibreMap, isNight: boolean) {
           "fill-extrusion-color": ["get", "color"],
           "fill-extrusion-opacity": isNight ? 0.86 : 0.92,
           "fill-extrusion-base": ["get", "base"],
-          "fill-extrusion-height": [
-            "+",
-            ["get", "height"],
-            ["*", ["get", "selected"], 14],
-            ["*", ["get", "live"], 8],
-          ],
+          "fill-extrusion-height": ["get", "height"],
           "fill-extrusion-vertical-gradient": true,
         },
       },
@@ -616,12 +898,7 @@ function addStructureLayers(map: MapLibreMap, isNight: boolean) {
           "fill-extrusion-color": ["get", "color"],
           "fill-extrusion-opacity": isNight ? 0.88 : 0.94,
           "fill-extrusion-base": ["get", "base"],
-          "fill-extrusion-height": [
-            "+",
-            ["get", "height"],
-            ["*", ["get", "selected"], 14],
-            ["*", ["get", "live"], 8],
-          ],
+          "fill-extrusion-height": ["get", "height"],
           "fill-extrusion-vertical-gradient": true,
         },
       },
@@ -640,7 +917,7 @@ function addMapLayers(
   map.addSource("moverse-route", {
     type: "geojson",
     lineMetrics: true,
-    data: makeLineFeature(route),
+    data: makeLineData(route),
   });
   map.addLayer({
     id: "moverse-route-base",
@@ -668,7 +945,7 @@ function addMapLayers(
 
   map.addSource("moverse-progress", {
     type: "geojson",
-    data: makeLineFeature(progressCoordinates(route, 0)),
+    data: makeLineData(progressCoordinates(route, 0)),
   });
   map.addLayer({
     id: "moverse-progress-line",
@@ -937,6 +1214,11 @@ export function WorldMap({
   isNight = false,
   movingProgress = 0,
   movingLabel,
+  recordedRoute,
+  isTracking,
+  followUser = true,
+  gpsAccuracyMeters,
+  routeMatched = false,
   center = DEFAULT_CENTER,
   userPosition,
   user = DEFAULT_USER,
@@ -970,15 +1252,20 @@ export function WorldMap({
     selectedEventId === undefined ? localSelectedEventId : selectedEventId;
   const actualSelectedSpotId =
     selectedSpotId === undefined ? localSelectedSpotId : selectedSpotId;
-  const route = useMemo(
+  const demoRoute = useMemo(
     () => routeCoordinates(stableCenter),
     [stableCenter],
   );
+  const hasRecordedRoute = recordedRoute !== undefined;
+  const route = hasRecordedRoute ? recordedRoute : demoRoute;
   const simulatedPosition = useMemo(
-    () => pointAlongRoute(route, progress),
-    [progress, route],
+    () => pointAlongRoute(demoRoute, progress),
+    [demoRoute, progress],
   );
-  const currentUserPosition = userPosition ?? locatedPosition ?? simulatedPosition;
+  const recordedPosition = route.length > 0 ? route[route.length - 1] : null;
+  const currentUserPosition =
+    userPosition ?? recordedPosition ?? locatedPosition ?? simulatedPosition;
+  const moving = isTracking ?? (progress > 0 && progress < 1);
 
   const spotById = useMemo(
     () => new Map(spots.map((spot) => [spot.id, spot] as const)),
@@ -1082,9 +1369,9 @@ export function WorldMap({
       createUserCollection(
         currentUserPosition,
         user,
-        progress > 0 && progress < 1,
+        moving,
       ),
-    [currentUserPosition, progress, user],
+    [currentUserPosition, moving, user],
   );
 
   useEffect(() => {
@@ -1127,7 +1414,7 @@ export function WorldMap({
           if (loadTimer) clearTimeout(loadTimer);
 
           try {
-            addMapLayers(map, route, initialNightRef.current);
+            addMapLayers(map, [], initialNightRef.current);
 
             const publishViewport = () => {
               if (!map) return;
@@ -1269,7 +1556,7 @@ export function WorldMap({
       map?.remove();
       mapRef.current = null;
     };
-  }, [route, stableCenter]);
+  }, [stableCenter]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1324,23 +1611,60 @@ export function WorldMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || mapState !== "ready") return;
+    try {
+      map.setPaintProperty(
+        "moverse-progress-line",
+        "line-color",
+        routeMatched ? "#d9ff63" : isNight ? "#f4fff9" : "#091f1a",
+      );
+    } catch {
+      // The route layer can be unavailable during a style transition.
+    }
+  }, [isNight, mapState, routeMatched]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || mapState !== "ready") return;
 
     const spotSource = map.getSource("moverse-spots") as GeoJSONSource | undefined;
     const eventSource = map.getSource("moverse-events") as GeoJSONSource | undefined;
     const userSource = map.getSource("moverse-user") as GeoJSONSource | undefined;
+    const routeSource = map.getSource("moverse-route") as GeoJSONSource | undefined;
     const progressSource = map.getSource("moverse-progress") as GeoJSONSource | undefined;
     spotSource?.setData(spotCollection);
     eventSource?.setData(eventCollection);
     userSource?.setData(userCollection);
-    progressSource?.setData(makeLineFeature(progressCoordinates(route, progress)));
+    routeSource?.setData(makeLineData(route));
+    progressSource?.setData(
+      makeLineData(hasRecordedRoute ? route : progressCoordinates(route, progress)),
+    );
   }, [
     eventCollection,
+    hasRecordedRoute,
     mapState,
     progress,
     route,
     spotCollection,
     userCollection,
   ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (
+      !map ||
+      mapState !== "ready" ||
+      !moving ||
+      !followUser ||
+      !currentUserPosition ||
+      map.isMoving()
+    ) return;
+    map.easeTo({
+      center: currentUserPosition,
+      zoom: Math.max(map.getZoom(), 16.1),
+      pitch: Math.max(map.getPitch(), 46),
+      duration: 360,
+    });
+  }, [currentUserPosition, followUser, mapState, moving]);
 
   useEffect(() => {
     if (mapState !== "ready") return;
@@ -1417,7 +1741,9 @@ export function WorldMap({
     <section
       className={mapClassName}
       data-map-state={mapState}
-      data-moving={progress > 0 && progress < 1 ? "true" : "false"}
+      data-moving={moving ? "true" : "false"}
+      data-route-matched={routeMatched ? "true" : "false"}
+      data-gps-accuracy={gpsAccuracyMeters ? Math.round(gpsAccuracyMeters) : undefined}
       style={progressStyle}
       aria-label="Moverse 활동 지도"
     >

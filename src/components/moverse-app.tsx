@@ -21,8 +21,10 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DEMO_SPOTS } from "@/data/demo-data";
+import { useGpsTracker } from "@/hooks/use-gps-tracker";
+import { useStreetMatchedRoute } from "@/hooks/use-street-matched-route";
 import { useMoverseStore } from "@/store/use-moverse-store";
 import { MODE_LABEL, SPORT_META, type MoveEvent, type MoveSpot } from "@/types/moverse";
 import { Onboarding } from "./onboarding";
@@ -69,13 +71,27 @@ export function MoverseApp() {
   const [verseOpen, setVerseOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [moveActive, setMoveActive] = useState(false);
-  const [movePaused, setMovePaused] = useState(false);
-  const [moveSeconds, setMoveSeconds] = useState(0);
-  const [moveProgress, setMoveProgress] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [isNightPreview, setIsNightPreview] = useState(false);
   const [mapViewport, setMapViewport] = useState<WorldMapViewport | null>(null);
-  const energyMilestoneRef = useRef(0);
+  const gps = useGpsTracker();
+  const streetRoute = useStreetMatchedRoute(
+    gps.acceptedPoints,
+    moveActive && !gps.isPaused,
+  );
+  const rawRecordedRoute = useMemo(
+    () =>
+      gps.acceptedPoints.map(
+        (point) => [point.longitude, point.latitude] as [number, number],
+      ),
+    [gps.acceptedPoints],
+  );
+  const recordedRoute =
+    streetRoute.coordinates.length >= 2 ? streetRoute.coordinates : rawRecordedRoute;
+  const currentGpsPosition = rawRecordedRoute.at(-1);
+  // Rewards and live stats always use filtered sensor distance. Map matching is
+  // visualization-only so an upstream route correction can never mint energy.
+  const measuredDistanceMeters = gps.acceptedDistanceMeters;
 
   useEffect(() => {
     // Persist middleware can finish before the first component subscription on a
@@ -85,21 +101,22 @@ export function MoverseApp() {
   }, []);
 
   useEffect(() => {
-    if (!moveActive || movePaused) return;
-    const timer = window.setInterval(() => {
-      setMoveSeconds((value) => value + 6);
-      setMoveProgress((value) => Math.min(100, value + 1.8));
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [moveActive, movePaused]);
-
-  useEffect(() => {
     if (!moveActive) return;
-    const milestone = Math.floor(moveProgress / 18);
-    if (milestone <= energyMilestoneRef.current) return;
-    store.addEnergy((milestone - energyMilestoneRef.current) * 2);
-    energyMilestoneRef.current = milestone;
-  }, [moveActive, moveProgress, store]);
+    const message =
+      gps.status === "permission-denied"
+        ? "위치 권한이 필요해요. 브라우저 설정에서 Moverse 위치 접근을 허용해주세요."
+        : gps.status === "unsupported"
+          ? "이 브라우저에서는 GPS 기록을 지원하지 않아요."
+          : gps.status === "error"
+            ? (gps.error?.message ?? "GPS를 시작하지 못했어요. 잠시 후 다시 시도해주세요.")
+            : null;
+    if (!message) return;
+    const timer = window.setTimeout(() => {
+      setMoveActive(false);
+      setToast(message);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [gps.error, gps.status, moveActive]);
 
   useEffect(() => {
     if (!toast) return;
@@ -180,14 +197,12 @@ export function MoverseApp() {
         return;
       }
       if (!moveActive) {
-        energyMilestoneRef.current = 0;
-        setMoveSeconds(0);
-        setMoveProgress(0);
+        gps.reset();
+        gps.start();
       }
       setSelectedEvent(null);
       setSelectedSpot(null);
       setMoveActive(true);
-      setMovePaused(false);
       setActiveTab("map");
       return;
     }
@@ -255,7 +270,12 @@ export function MoverseApp() {
             if (spot) { setSelectedSpot(spot); setSelectedEvent(null); }
           }}
           isNight={isNightPreview}
-          movingProgress={moveProgress}
+          recordedRoute={recordedRoute}
+          userPosition={currentGpsPosition}
+          isTracking={moveActive && !gps.isPaused}
+          followUser
+          gpsAccuracyMeters={gps.accuracyMeters}
+          routeMatched={streetRoute.state === "matched"}
           showHud={false}
           onViewportChange={handleViewportChange}
         />
@@ -305,14 +325,26 @@ export function MoverseApp() {
         <AnimatePresence>
           {moveActive && (
             <MoveSession
-              seconds={moveSeconds}
-              progress={moveProgress}
-              paused={movePaused}
-              onPause={() => setMovePaused((value) => !value)}
+              activeDurationMs={gps.activeDurationMs}
+              distanceMeters={measuredDistanceMeters}
+              paceMinutesPerKm={gps.paceMinutesPerKm}
+              accuracyMeters={gps.accuracyMeters}
+              status={gps.status}
+              mapMatchState={streetRoute.state}
+              rejectedPointCount={gps.rejectedPointCount}
+              paused={gps.isPaused}
+              onPause={() => {
+                if (gps.isPaused) gps.resume();
+                else gps.pause();
+              }}
               onFinish={() => {
+                gps.stop();
                 setMoveActive(false);
-                setMovePaused(false);
-                setToast(`${(moveProgress * 0.014).toFixed(1)}km 이동 · Energy ${Math.max(4, Math.floor(moveProgress / 9))} 획득!`);
+                const reward = Math.min(30, Math.floor(measuredDistanceMeters / 100));
+                if (reward > 0) store.addEnergy(reward);
+                setToast(
+                  `${(measuredDistanceMeters / 1000).toFixed(2)}km 기록 · 거리 보상 Energy +${reward}`,
+                );
               }}
             />
           )}
@@ -454,19 +486,81 @@ function SpotPreviewCard({ spot, events, onClose, onEvent }: { spot: MoveSpot; e
   );
 }
 
-function MoveSession({ seconds, progress, paused, onPause, onFinish }: { seconds: number; progress: number; paused: boolean; onPause: () => void; onFinish: () => void }) {
-  const mins = Math.floor(seconds / 60).toString().padStart(2, "0");
-  const secs = Math.floor(seconds % 60).toString().padStart(2, "0");
+function formatMoveTime(milliseconds: number) {
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
+  return hours > 0 ? `${hours}:${minutes}:${seconds}` : `${minutes}:${seconds}`;
+}
+
+function formatPace(paceMinutesPerKm: number | null) {
+  if (!paceMinutesPerKm || !Number.isFinite(paceMinutesPerKm)) return "--'--\"";
+  const totalSeconds = Math.round(paceMinutesPerKm * 60);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = (totalSeconds % 60)
+    .toString()
+    .padStart(2, "0");
+  return `${minutes}'${seconds}\"`;
+}
+
+function MoveSession({
+  activeDurationMs,
+  distanceMeters,
+  paceMinutesPerKm,
+  accuracyMeters,
+  status,
+  mapMatchState,
+  rejectedPointCount,
+  paused,
+  onPause,
+  onFinish,
+}: {
+  activeDurationMs: number;
+  distanceMeters: number;
+  paceMinutesPerKm: number | null;
+  accuracyMeters: number | null;
+  status: string;
+  mapMatchState: string;
+  rejectedPointCount: number;
+  paused: boolean;
+  onPause: () => void;
+  onFinish: () => void;
+}) {
+  const distanceKm = distanceMeters / 1000;
+  const reward = Math.min(30, Math.floor(distanceMeters / 100));
+  const gpsLabel =
+    status === "requesting-permission"
+      ? "GPS 권한 확인 중"
+      : status === "weak-signal"
+        ? "GPS 신호 보정 중"
+        : paused
+          ? "기록 일시정지"
+          : "고정밀 거리 기록 중";
+  const routeLabel =
+    mapMatchState === "matched"
+      ? "골목·보행로 경로 보정 완료"
+      : mapMatchState === "matching"
+        ? "도로망에 경로를 맞추는 중"
+        : "필터링된 실시간 GPS 경로";
+  const canPause = !["requesting-permission", "idle"].includes(status);
+
   return (
     <motion.div className="move-session" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -12, opacity: 0 }}>
-      <div className="move-live"><i /> 이동 기록 중</div>
+      <div className={`move-live ${status === "weak-signal" ? "is-weak" : ""}`}><i /> {gpsLabel}</div>
       <div className="move-metrics">
-        <div><small>시간</small><strong>{mins}:{secs}</strong></div>
-        <div><small>거리</small><strong>{(progress * 0.014).toFixed(2)}<em>km</em></strong></div>
-        <div><small>에너지</small><strong className="lime-number">+{Math.max(2, Math.floor(progress / 9))}</strong></div>
+        <div className="move-distance"><small>GPS 거리</small><strong>{distanceKm.toFixed(2)}<em>km</em></strong></div>
+        <div><small>평균 페이스</small><strong>{formatPace(paceMinutesPerKm)}<em>/km</em></strong></div>
+        <div><small>활동 시간</small><strong>{formatMoveTime(activeDurationMs)}</strong></div>
       </div>
-      <div className="move-destination"><span><SportIcon sport="running" size={21} /></span><p><small>추천 경로</small><strong>러닝 게이트까지 {Math.max(0.1, 0.62 - progress * 0.006).toFixed(1)}km</strong></p><b>{Math.round(progress)}%</b></div>
-      <div className="move-actions"><button onClick={onPause}>{paused ? "다시 움직이기" : "잠시 멈춤"}</button><button onClick={onFinish}>활동 종료</button></div>
+      <div className="move-destination">
+        <span><SportIcon sport="running" size={21} /></span>
+        <p><small>{routeLabel}</small><strong>정확도 {accuracyMeters ? `±${Math.round(accuracyMeters)}m` : "측정 중"} · GPS 잡음 {rejectedPointCount}개 제외</strong></p>
+        <b>+{reward} E</b>
+      </div>
+      <div className="move-actions"><button onClick={onPause} disabled={!canPause}>{paused ? "기록 계속" : "일시정지"}</button><button onClick={onFinish}>MOVE 종료</button></div>
     </motion.div>
   );
 }
