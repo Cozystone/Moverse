@@ -11,6 +11,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { MoverAvatar } from "./mover-avatar";
 
 type BumpStage = "ready" | "holding" | "candidate" | "success";
 
@@ -98,7 +99,7 @@ export function BumpOverlay({
 
           {stage === "candidate" ? (
             <section className="bump-copy bump-candidate">
-              <span className="bump-candidate-avatar" aria-hidden="true">L</span>
+              <MoverAvatar avatarId="lumi" size="md" status="online" ring="accent" framing="bust" />
               <p>지금 만난 사람</p>
               <h2 id="bump-title">LUMI 맞나요?</h2>
               <div className="bump-confirm-actions">

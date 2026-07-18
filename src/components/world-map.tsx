@@ -25,6 +25,11 @@ import {
   Sun,
   WifiOff,
 } from "lucide-react";
+import {
+  createMover3DLayer,
+  MOVER_3D_MODEL_URLS,
+  type Mover3DLayerHandle,
+} from "@/lib/create-mover-3d-layer";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./world-map.css";
 
@@ -49,6 +54,7 @@ export interface WorldMapViewport {
   };
   visibleSpotIds: string[];
   visibleEventIds: string[];
+  visiblePersonIds: string[];
 }
 
 export type WorldMapSpotLevel =
@@ -70,6 +76,7 @@ export interface WorldMapSpot {
   distanceLabel?: string;
   verified?: boolean;
   closesAt?: string;
+  kind?: "verified-hub" | "discovery";
 }
 
 export interface WorldMapEvent {
@@ -87,10 +94,27 @@ export interface WorldMapEvent {
 }
 
 export interface WorldMapUser {
+  id?: string;
   nickname?: string;
   initials?: string;
   avatarUrl?: string;
+  modelId?: "nova" | "lumi" | "dash" | "mint";
   level?: number;
+}
+
+export interface WorldMapPerson {
+  id: string;
+  nickname: string;
+  modelId: "nova" | "lumi" | "dash" | "mint";
+  longitude?: number;
+  latitude?: number;
+  visibility: "hidden" | "approximate" | "precise";
+  status?: string;
+  updatedAt?: string;
+  expiresAt?: string;
+  accuracyMeters?: number;
+  bearing?: number;
+  moving?: boolean;
 }
 
 export interface WorldMapProps {
@@ -100,6 +124,8 @@ export interface WorldMapProps {
   selectedSpotId?: string | null;
   onSelectEvent?: (event: WorldMapEvent) => void;
   onSelectSpot?: (spot: WorldMapSpot) => void;
+  people?: readonly WorldMapPerson[];
+  onSelectPerson?: (person: WorldMapPerson) => void;
   onViewportChange?: (viewport: WorldMapViewport) => void;
   isNight?: boolean;
   movingProgress?: number;
@@ -120,7 +146,33 @@ export interface WorldMapProps {
 type MapState = "loading" | "ready" | "fallback";
 
 const DEFAULT_CENTER: WorldMapCoordinate = [126.9360586, 37.5256731];
-const DEFAULT_USER: WorldMapUser = { nickname: "NOVA", initials: "N", level: 7 };
+const DEFAULT_USER: WorldMapUser = {
+  id: "nova",
+  nickname: "NOVA",
+  initials: "N",
+  modelId: "nova",
+  level: 7,
+};
+
+const MOVER_3D_MODEL_BY_ID: Record<
+  NonNullable<WorldMapUser["modelId"]>,
+  string
+> = {
+  nova: MOVER_3D_MODEL_URLS[0],
+  lumi: MOVER_3D_MODEL_URLS[1],
+  dash: MOVER_3D_MODEL_URLS[2],
+  mint: MOVER_3D_MODEL_URLS[3],
+};
+
+const MOVER_ACCENT_BY_ID: Record<
+  NonNullable<WorldMapUser["modelId"]>,
+  string
+> = {
+  nova: "#ceff3d",
+  lumi: "#56e1d2",
+  dash: "#ff975f",
+  mint: "#58e6b7",
+};
 
 const DEFAULT_SPOTS: readonly WorldMapSpot[] = [
   {
@@ -265,6 +317,7 @@ type SpotFeatureProperties = {
   color: string;
   selected: number;
   levelLabel: string;
+  kind: "verified-hub" | "discovery";
 };
 
 type EventFeatureProperties = {
@@ -278,7 +331,16 @@ type EventFeatureProperties = {
 };
 
 type UserFeatureProperties = {
+  id: string;
   initials: string;
+  nickname: string;
+  moving: number;
+};
+
+type PersonFeatureProperties = {
+  id: string;
+  nickname: string;
+  visibility: "approximate" | "precise";
   moving: number;
 };
 
@@ -556,10 +618,11 @@ function createSpotCollection(
         properties: {
           id: spot.id,
           label: spot.shortName ?? spot.name,
-          symbol: level === "seed" ? "+" : "M",
+          symbol: spot.kind === "discovery" ? "+" : level === "seed" ? "+" : "M",
           color: SPOT_COLOR[level],
           selected: selectedSpotId === spot.id ? 1 : 0,
           levelLabel: `${spot.levelNumber ?? 1}단계`,
+          kind: spot.kind ?? "verified-hub",
         },
         geometry: {
           type: "Point",
@@ -609,7 +672,9 @@ function createStructureCollection(
   selectedSpotId: string | null | undefined,
   selectedEventId: string | null | undefined,
 ): FeatureCollection<Polygon, StructureFeatureProperties> {
-  const spotFeatures: Feature<Polygon, StructureFeatureProperties>[] = spots.flatMap(
+  const spotFeatures: Feature<Polygon, StructureFeatureProperties>[] = spots
+    .filter((spot) => spot.kind !== "discovery")
+    .flatMap(
     (spot) => {
       const level = spot.level ?? "active";
       const selected = selectedSpotId === spot.id ? 1 : 0;
@@ -852,12 +917,47 @@ function createUserCollection(
       {
         type: "Feature",
         properties: {
+          id: user.id ?? "nova",
           initials: (user.initials ?? user.nickname?.slice(0, 1) ?? "N").slice(0, 2),
+          nickname: user.nickname ?? "NOVA",
           moving: moving ? 1 : 0,
         },
         geometry: { type: "Point", coordinates: position },
       },
     ],
+  };
+}
+
+function createPeopleCollection(
+  people: readonly WorldMapPerson[],
+): FeatureCollection<Point, PersonFeatureProperties> {
+  return {
+    type: "FeatureCollection",
+    features: people.flatMap((person) => {
+      if (
+        person.visibility === "hidden" ||
+        !Number.isFinite(person.longitude) ||
+        !Number.isFinite(person.latitude)
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          type: "Feature" as const,
+          properties: {
+            id: person.id,
+            nickname: person.nickname,
+            visibility: person.visibility,
+            moving: person.moving ? 1 : 0,
+          },
+          geometry: {
+            type: "Point" as const,
+            coordinates: [person.longitude as number, person.latitude as number],
+          },
+        },
+      ];
+    }),
   };
 }
 
@@ -1003,7 +1103,14 @@ function addMapLayers(
     minzoom: 13.8,
     filter: ["!", ["has", "point_count"]],
     paint: {
-      "circle-radius": ["case", ["==", ["get", "selected"], 1], 24, 18],
+      "circle-radius": [
+        "case",
+        ["==", ["get", "selected"], 1],
+        24,
+        ["==", ["get", "kind"], "discovery"],
+        13,
+        18,
+      ],
       "circle-color": ["get", "color"],
       "circle-opacity": isNight ? 0.32 : 0.24,
       "circle-blur": 0.28,
@@ -1017,7 +1124,14 @@ function addMapLayers(
     minzoom: 13.8,
     filter: ["!", ["has", "point_count"]],
     paint: {
-      "circle-radius": ["case", ["==", ["get", "selected"], 1], 13, 10],
+      "circle-radius": [
+        "case",
+        ["==", ["get", "selected"], 1],
+        13,
+        ["==", ["get", "kind"], "discovery"],
+        7,
+        10,
+      ],
       "circle-color": ["get", "color"],
       "circle-stroke-color": "#ffffff",
       "circle-stroke-width": ["case", ["==", ["get", "selected"], 1], 3, 2],
@@ -1182,10 +1296,12 @@ function addMapLayers(
     type: "circle",
     source: "moverse-user",
     paint: {
-      "circle-radius": 13,
-      "circle-color": isNight ? "#d5fff0" : "#173f36",
-      "circle-stroke-color": "#ffffff",
-      "circle-stroke-width": 3,
+      "circle-radius": 9,
+      "circle-color": "#020504",
+      "circle-opacity": 0.28,
+      "circle-stroke-color": "#c8ff38",
+      "circle-stroke-width": 2,
+      "circle-pitch-alignment": "map",
     },
   });
   map.addLayer({
@@ -1193,13 +1309,74 @@ function addMapLayers(
     type: "symbol",
     source: "moverse-user",
     layout: {
-      "text-field": ["get", "initials"],
+      "text-field": ["get", "nickname"],
       "text-font": ["Noto Sans Bold"],
-      "text-size": 11,
+      "text-size": 11.5,
+      "text-anchor": "top",
+      "text-offset": [0, 3.25],
       "text-allow-overlap": true,
       "text-ignore-placement": true,
     },
-    paint: { "text-color": isNight ? "#173f36" : "#ffffff" },
+    paint: {
+      "text-color": "#ffffff",
+      "text-halo-color": "#07110e",
+      "text-halo-width": 3,
+    },
+  });
+
+  map.addSource("moverse-people", {
+    type: "geojson",
+    data: EMPTY_POINT_COLLECTION,
+  });
+  map.addLayer({
+    id: "moverse-people-aura",
+    type: "circle",
+    source: "moverse-people",
+    minzoom: 13.8,
+    paint: {
+      "circle-radius": ["case", ["==", ["get", "moving"], 1], 24, 18],
+      "circle-color": [
+        "case",
+        ["==", ["get", "visibility"], "approximate"],
+        "#79a89b",
+        "#66e7c0",
+      ],
+      "circle-opacity": [
+        "case",
+        ["==", ["get", "visibility"], "approximate"],
+        0.12,
+        0.2,
+      ],
+      "circle-blur": 0.32,
+      "circle-pitch-alignment": "map",
+    },
+  });
+  map.addLayer({
+    id: "moverse-people-label",
+    type: "symbol",
+    source: "moverse-people",
+    minzoom: 14.8,
+    layout: {
+      "text-field": ["get", "nickname"],
+      "text-font": ["Noto Sans Bold"],
+      "text-size": 11,
+      "text-anchor": "top",
+      "text-offset": [0, 3.1],
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+    },
+    paint: {
+      "text-color": "#ffffff",
+      "text-halo-color": "#07110e",
+      "text-halo-width": 3,
+    },
+  });
+  map.addLayer({
+    id: "moverse-people-hit",
+    type: "circle",
+    source: "moverse-people",
+    minzoom: 13.8,
+    paint: { "circle-radius": 36, "circle-opacity": 0.001 },
   });
 }
 
@@ -1210,6 +1387,8 @@ export function WorldMap({
   selectedSpotId,
   onSelectEvent,
   onSelectSpot,
+  people = [],
+  onSelectPerson,
   onViewportChange,
   isNight = false,
   movingProgress = 0,
@@ -1228,6 +1407,7 @@ export function WorldMap({
 }: WorldMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const mover3DRef = useRef<Mover3DLayerHandle | null>(null);
   const initialNightRef = useRef(isNight);
   const [mapState, setMapState] = useState<MapState>("loading");
   const [mapBooted, setMapBooted] = useState(false);
@@ -1235,9 +1415,11 @@ export function WorldMap({
   const [locationMessage, setLocationMessage] = useState("");
   const [localSelectedEventId, setLocalSelectedEventId] = useState<string | null>(null);
   const [localSelectedSpotId, setLocalSelectedSpotId] = useState<string | null>(null);
+  const [localSelectedPersonId, setLocalSelectedPersonId] = useState<string | null>(null);
   const [locatedPosition, setLocatedPosition] = useState<WorldMapCoordinate | null>(null);
   const [visibleSpotIds, setVisibleSpotIds] = useState<string[] | null>(null);
   const [visibleEventIds, setVisibleEventIds] = useState<string[] | null>(null);
+  const [visiblePersonIds, setVisiblePersonIds] = useState<string[] | null>(null);
 
   const spots = spotsProp ?? DEFAULT_SPOTS;
   const events = eventsProp ?? DEFAULT_EVENTS;
@@ -1265,7 +1447,45 @@ export function WorldMap({
   const recordedPosition = route.length > 0 ? route[route.length - 1] : null;
   const currentUserPosition =
     userPosition ?? recordedPosition ?? locatedPosition ?? simulatedPosition;
+  const initialCameraCenterRef = useRef<WorldMapCoordinate>(currentUserPosition);
   const moving = isTracking ?? (progress > 0 && progress < 1);
+  const shareablePeople = useMemo(
+    () =>
+      people.filter(
+        (person) =>
+          person.visibility !== "hidden" &&
+          Number.isFinite(person.longitude) &&
+          Number.isFinite(person.latitude),
+      ),
+    [people],
+  );
+  const mover3DPeople = useMemo(() => {
+    const selfModelId = user.modelId ?? "nova";
+    return [
+      {
+        id: user.id ?? "nova",
+        modelUrl: MOVER_3D_MODEL_BY_ID[selfModelId],
+        lng: currentUserPosition[0],
+        lat: currentUserPosition[1],
+        bearing: moving ? 22 : -12,
+        animation: moving ? ("sprint" as const) : ("idle" as const),
+        accent: MOVER_ACCENT_BY_ID[selfModelId],
+        privacy: "precise" as const,
+        scale: 20,
+      },
+      ...shareablePeople.map((person) => ({
+        id: person.id,
+        modelUrl: MOVER_3D_MODEL_BY_ID[person.modelId],
+        lng: person.longitude as number,
+        lat: person.latitude as number,
+        bearing: person.bearing ?? 0,
+        animation: person.moving ? ("walk" as const) : ("idle" as const),
+        accent: MOVER_ACCENT_BY_ID[person.modelId],
+        privacy: person.visibility,
+        scale: 17.5,
+      })),
+    ];
+  }, [currentUserPosition, moving, shareablePeople, user.id, user.modelId]);
 
   const spotById = useMemo(
     () => new Map(spots.map((spot) => [spot.id, spot] as const)),
@@ -1291,6 +1511,7 @@ export function WorldMap({
   const viewportDataRef = useRef({
     spots,
     events,
+    people: shareablePeople,
     eventCoordinate,
     onViewportChange,
   });
@@ -1299,15 +1520,17 @@ export function WorldMap({
     viewportDataRef.current = {
       spots,
       events,
+      people: shareablePeople,
       eventCoordinate,
       onViewportChange,
     };
-  }, [eventCoordinate, events, onViewportChange, spots]);
+  }, [eventCoordinate, events, onViewportChange, shareablePeople, spots]);
 
   const selectSpot = useCallback(
     (spot: WorldMapSpot) => {
       setLocalSelectedSpotId(spot.id);
       setLocalSelectedEventId(null);
+      setLocalSelectedPersonId(null);
       onSelectSpot?.(spot);
       mapRef.current?.easeTo({
         center: [spot.longitude, spot.latitude],
@@ -1323,6 +1546,7 @@ export function WorldMap({
     (event: WorldMapEvent, index: number) => {
       setLocalSelectedEventId(event.id);
       setLocalSelectedSpotId(null);
+      setLocalSelectedPersonId(null);
       onSelectEvent?.(event);
       mapRef.current?.easeTo({
         center: eventCoordinate(event, index),
@@ -1334,10 +1558,41 @@ export function WorldMap({
     [eventCoordinate, onSelectEvent],
   );
 
-  const interactionRef = useRef({ spots, events, selectSpot, selectEvent });
+  const selectPerson = useCallback(
+    (person: WorldMapPerson) => {
+      if (!Number.isFinite(person.longitude) || !Number.isFinite(person.latitude)) return;
+      setLocalSelectedPersonId(person.id);
+      setLocalSelectedEventId(null);
+      setLocalSelectedSpotId(null);
+      onSelectPerson?.(person);
+      mapRef.current?.easeTo({
+        center: [person.longitude as number, person.latitude as number],
+        zoom: 16.7,
+        pitch: 52,
+        duration: 680,
+      });
+    },
+    [onSelectPerson],
+  );
+
+  const interactionRef = useRef({
+    spots,
+    events,
+    people: shareablePeople,
+    selectSpot,
+    selectEvent,
+    selectPerson,
+  });
   useEffect(() => {
-    interactionRef.current = { spots, events, selectSpot, selectEvent };
-  }, [events, selectEvent, selectSpot, spots]);
+    interactionRef.current = {
+      spots,
+      events,
+      people: shareablePeople,
+      selectSpot,
+      selectEvent,
+      selectPerson,
+    };
+  }, [events, selectEvent, selectPerson, selectSpot, shareablePeople, spots]);
 
   const spotCollection = useMemo(
     () => createSpotCollection(spots, actualSelectedSpotId),
@@ -1373,6 +1628,10 @@ export function WorldMap({
       ),
     [currentUserPosition, moving, user],
   );
+  const peopleCollection = useMemo(
+    () => createPeopleCollection(shareablePeople),
+    [shareablePeople],
+  );
 
   useEffect(() => {
     let disposed = false;
@@ -1388,14 +1647,15 @@ export function WorldMap({
         map = new maplibre.Map({
           container: mapContainerRef.current,
           style: createKeylessStyle(initialNightRef.current),
-          center: stableCenter,
-          zoom: 14.95,
+          center: initialCameraCenterRef.current,
+          zoom: 15.3,
           pitch: 42,
           bearing: -18,
           minZoom: 10.4,
           maxZoom: 19,
           maxPitch: 60,
           attributionControl: false,
+          canvasContextAttributes: { antialias: true },
           renderWorldCopies: false,
           fadeDuration: 0,
         });
@@ -1416,6 +1676,19 @@ export function WorldMap({
           try {
             addMapLayers(map, [], initialNightRef.current);
 
+            try {
+              const movers3D = createMover3DLayer({
+                id: "moverse-people-3d",
+                minZoom: 13.8,
+                maxPeople: 4,
+                defaultScale: 2.45,
+              });
+              map.addLayer(movers3D.layer, "moverse-user-label");
+              mover3DRef.current = movers3D;
+            } catch {
+              // The map remains fully usable with the footprint and name layers.
+            }
+
             const publishViewport = () => {
               if (!map) return;
               const bounds = map.getBounds();
@@ -1429,6 +1702,14 @@ export function WorldMap({
                   bounds.contains(data.eventCoordinate(activity, index)),
                 )
                 .map((activity) => activity.id);
+              const nextVisiblePersonIds = data.people
+                .filter(
+                  (person) =>
+                    typeof person.longitude === "number" &&
+                    typeof person.latitude === "number" &&
+                    bounds.contains([person.longitude, person.latitude]),
+                )
+                .map((person) => person.id);
               const viewport: WorldMapViewport = {
                 center: [mapCenter.lng, mapCenter.lat],
                 zoom: map.getZoom(),
@@ -1440,23 +1721,70 @@ export function WorldMap({
                 },
                 visibleSpotIds: nextVisibleSpotIds,
                 visibleEventIds: nextVisibleEventIds,
+                visiblePersonIds: nextVisiblePersonIds,
               };
 
               setVisibleSpotIds(nextVisibleSpotIds);
               setVisibleEventIds(nextVisibleEventIds);
+              setVisiblePersonIds(nextVisiblePersonIds);
               data.onViewportChange?.(viewport);
             };
             publishViewportRef.current = publishViewport;
 
             const onMapClick = (event: MapMouseEvent) => {
               if (!map) return;
+              const activeMap = map;
+
+              const personAtPoint = interactionRef.current.people
+                .flatMap((person) => {
+                  if (typeof person.longitude !== "number" || typeof person.latitude !== "number") {
+                    return [];
+                  }
+
+                  const anchor = activeMap.project([person.longitude, person.latitude]);
+                  const deltaX = Math.abs(event.point.x - anchor.x);
+                  const deltaY = event.point.y - anchor.y;
+
+                  // The GLB grows upward from its geographic anchor, so keep the
+                  // whole visible character tappable without detaching the hit
+                  // target from the map coordinate.
+                  const isInsideModel = deltaX <= 42 && deltaY >= -82 && deltaY <= 28;
+                  return {
+                    person,
+                    isInsideModel,
+                    distance: Math.hypot(deltaX, deltaY),
+                  };
+                })
+                .filter((candidate) => candidate.isInsideModel)
+                .sort((left, right) => left.distance - right.distance)[0];
+
+              if (personAtPoint) {
+                interactionRef.current.selectPerson(personAtPoint.person);
+                return;
+              }
+
               const features = map.queryRenderedFeatures(event.point, {
                 layers: [
+                  "moverse-people-hit",
+                  "moverse-people-label",
+                  "moverse-people-aura",
                   "moverse-spot-clusters",
                   "moverse-events-hit",
                   "moverse-spots-hit",
                 ],
               });
+              const personFeature = features.find(
+                (candidate) => candidate.source === "moverse-people",
+              );
+              const personId = personFeature?.properties?.id;
+              if (typeof personId === "string") {
+                const target = interactionRef.current.people.find(
+                  (candidate) => candidate.id === personId,
+                );
+                if (target) interactionRef.current.selectPerson(target);
+                return;
+              }
+
               const feature = features[0];
               if (feature?.layer.id === "moverse-spot-clusters") {
                 const clusterId = Number(feature.properties?.cluster_id);
@@ -1500,6 +1828,9 @@ export function WorldMap({
               if (!map) return;
               const interactive = map.queryRenderedFeatures(event.point, {
                 layers: [
+                  "moverse-people-hit",
+                  "moverse-people-label",
+                  "moverse-people-aura",
                   "moverse-spot-clusters",
                   "moverse-events-hit",
                   "moverse-spots-hit",
@@ -1553,6 +1884,8 @@ export function WorldMap({
       disposed = true;
       if (loadTimer) clearTimeout(loadTimer);
       publishViewportRef.current = null;
+      mover3DRef.current?.destroy();
+      mover3DRef.current = null;
       map?.remove();
       mapRef.current = null;
     };
@@ -1601,8 +1934,12 @@ export function WorldMap({
           isNight ? 0.88 : 0.94,
         );
       }
-      map.setPaintProperty("moverse-user-core", "circle-color", isNight ? "#d5fff0" : "#173f36");
-      map.setPaintProperty("moverse-user-label", "text-color", isNight ? "#173f36" : "#ffffff");
+      map.setPaintProperty(
+        "moverse-user-core",
+        "circle-stroke-color",
+        isNight ? "#d7ff63" : "#b8f236",
+      );
+      map.setPaintProperty("moverse-user-label", "text-color", "#ffffff");
     } catch {
       // A style can briefly be unavailable while the map is initializing.
     }
@@ -1625,28 +1962,41 @@ export function WorldMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || mapState !== "ready") return;
-
     const spotSource = map.getSource("moverse-spots") as GeoJSONSource | undefined;
+    spotSource?.setData(spotCollection);
+  }, [mapState, spotCollection]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || mapState !== "ready") return;
     const eventSource = map.getSource("moverse-events") as GeoJSONSource | undefined;
+    eventSource?.setData(eventCollection);
+  }, [eventCollection, mapState]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || mapState !== "ready") return;
     const userSource = map.getSource("moverse-user") as GeoJSONSource | undefined;
+    const peopleSource = map.getSource("moverse-people") as GeoJSONSource | undefined;
+    userSource?.setData(userCollection);
+    peopleSource?.setData(peopleCollection);
+  }, [mapState, peopleCollection, userCollection]);
+
+  useEffect(() => {
+    if (mapState !== "ready") return;
+    mover3DRef.current?.update(mover3DPeople);
+  }, [mapState, mover3DPeople]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || mapState !== "ready") return;
     const routeSource = map.getSource("moverse-route") as GeoJSONSource | undefined;
     const progressSource = map.getSource("moverse-progress") as GeoJSONSource | undefined;
-    spotSource?.setData(spotCollection);
-    eventSource?.setData(eventCollection);
-    userSource?.setData(userCollection);
     routeSource?.setData(makeLineData(route));
     progressSource?.setData(
       makeLineData(hasRecordedRoute ? route : progressCoordinates(route, progress)),
     );
-  }, [
-    eventCollection,
-    hasRecordedRoute,
-    mapState,
-    progress,
-    route,
-    spotCollection,
-    userCollection,
-  ]);
+  }, [hasRecordedRoute, mapState, progress, route]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1669,7 +2019,7 @@ export function WorldMap({
   useEffect(() => {
     if (mapState !== "ready") return;
     publishViewportRef.current?.();
-  }, [eventCoordinate, events, mapState, spots]);
+  }, [eventCoordinate, events, mapState, shareablePeople, spots]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1725,12 +2075,18 @@ export function WorldMap({
 
   const visibleSpotIdSet = visibleSpotIds ? new Set(visibleSpotIds) : null;
   const visibleEventIdSet = visibleEventIds ? new Set(visibleEventIds) : null;
-  const visibleSpots = visibleSpotIdSet
-    ? spots.filter((spot) => visibleSpotIdSet.has(spot.id))
-    : spots;
+  const visiblePersonIdSet = visiblePersonIds ? new Set(visiblePersonIds) : null;
+  const visibleSpots = (
+    visibleSpotIdSet
+      ? spots.filter((spot) => visibleSpotIdSet.has(spot.id))
+      : spots
+  ).slice(0, 18);
   const visibleEvents = visibleEventIdSet
     ? events.filter((event) => visibleEventIdSet.has(event.id))
     : events;
+  const visiblePeople = visiblePersonIdSet
+    ? shareablePeople.filter((person) => visiblePersonIdSet.has(person.id))
+    : shareablePeople;
 
   const progressStyle = {
     "--mw-progress": progress,
@@ -1761,6 +2117,22 @@ export function WorldMap({
       <div className="mw-map-activity-list" aria-label="주변 활동 목록">
         <strong>주변 활동</strong>
         <div className="mw-map-activity-list__items">
+          {visiblePeople.map((person) => (
+            <button
+              type="button"
+              key={person.id}
+              className={localSelectedPersonId === person.id ? "is-selected" : undefined}
+              onClick={() => selectPerson(person)}
+            >
+              <span className="mw-map-activity-list__dot is-person" aria-hidden="true" />
+              <span>
+                <b>{person.nickname}</b>
+                <small>
+                  Move Mate · {person.visibility === "precise" ? "정밀 위치 공유" : "대략 위치 공유"}
+                </small>
+              </span>
+            </button>
+          ))}
           {visibleSpots.map((spot) => (
             <button
               type="button"

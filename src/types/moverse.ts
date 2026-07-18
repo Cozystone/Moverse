@@ -17,6 +17,15 @@ export type FacilityType =
   | "running-track"
   | "multi-use-court";
 
+export type MoveSpotKind = "verified-hub" | "discovery";
+
+export type MoveSpotSource = {
+  id: "seoul-oa-21698" | "seoul-oa-21699" | "curated";
+  name: string;
+  url: string;
+  referenceDate: string;
+};
+
 export type MoveFacility = {
   type: FacilityType;
   access: "free" | "reservation" | "paid" | "mixed";
@@ -48,8 +57,41 @@ export type MoveSpot = {
   verified: boolean;
   closesAt: string;
   distanceLabel: string;
+  kind?: MoveSpotKind;
+  eventEligible?: boolean;
+  source?: MoveSpotSource;
   facility?: MoveFacility;
 };
+
+export type AvatarId = "nova" | "lumi" | "dash" | "mint";
+
+export type LocationVisibility = "hidden" | "approximate" | "precise";
+
+export type MoverProfile = {
+  id: string;
+  nickname: string;
+  avatarId: AvatarId;
+  level: number;
+  verified: boolean;
+  favoriteSports: SportType[];
+};
+
+export type NearbyMatePresence =
+  | {
+      mateId: string;
+      visibility: "hidden";
+    }
+  | {
+      mateId: string;
+      visibility: Exclude<LocationVisibility, "hidden">;
+      longitude: number;
+      latitude: number;
+      updatedAt: string;
+      expiresAt: string;
+      accuracyMeters: number;
+      bearing?: number;
+      speedMps?: number;
+    };
 
 export type MoveEvent = {
   id: string;
@@ -81,6 +123,7 @@ export type MoveMate = {
   id: string;
   nickname: string;
   avatar: string;
+  avatarId?: AvatarId;
   sports: SportType[];
   sharedActivities: number;
   status: string;

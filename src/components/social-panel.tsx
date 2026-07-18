@@ -26,6 +26,8 @@ import {
   Users,
   X,
 } from 'lucide-react'
+import type { AvatarId } from '@/types/moverse'
+import { MoverAvatar } from './mover-avatar'
 
 export type MateAvailability = {
   date: string
@@ -247,31 +249,19 @@ function isDmEligible(mate: SocialMate, blockedIds: Set<string>) {
 }
 
 function Avatar({ mate, size = 'md' }: { mate: SocialMate; size?: 'sm' | 'md' | 'lg' }) {
-  const sizeClass = {
-    sm: 'h-9 w-9 text-xs',
-    md: 'h-12 w-12 text-sm',
-    lg: 'h-16 w-16 text-lg',
-  }[size]
-  const tones = [
-    'bg-[#caff52] text-[#17352c]',
-    'bg-[#263c34] text-white',
-    'bg-[#35566b] text-white',
-    'bg-[#6d493a] text-white',
-  ]
-  const toneIndex = [...mate.id].reduce((sum, character) => sum + character.charCodeAt(0), 0) % tones.length
-  const initial = mate.nickname.trim().slice(0, 1).toLocaleUpperCase('ko-KR') || 'M'
+  const avatarId = (["nova", "lumi", "dash", "mint"] as string[]).includes(mate.id)
+    ? (mate.id as AvatarId)
+    : "nova"
+  const avatarSize = size === 'sm' ? 'xs' : size === 'lg' ? 'md' : 'sm'
 
   return (
-    <div
-      aria-label={`${mate.nickname} 프로필`}
-      role="img"
-      className={`${sizeClass} ${tones[toneIndex]} relative grid shrink-0 place-items-center rounded-lg border border-black/5 font-black tracking-[-0.03em]`}
-    >
-      <span>{initial}</span>
-      {mate.status === 'online' ? (
-        <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-[#2b9a72]" />
-      ) : null}
-    </div>
+    <MoverAvatar
+      avatarId={avatarId}
+      size={avatarSize}
+      status={mate.status === 'online' ? 'online' : mate.status === 'away' ? 'idle' : 'offline'}
+      ring={mate.status === 'online' ? 'accent' : 'neutral'}
+      framing="bust"
+    />
   )
 }
 

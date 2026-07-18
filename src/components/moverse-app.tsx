@@ -29,26 +29,78 @@ import {
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DEMO_SPOTS } from "@/data/demo-data";
+import {
+  SEOUL_DISCOVERY_STOPS,
+  SEOUL_DISCOVERY_STOPS_META,
+} from "@/data/seoul-stops";
 import { useGpsTracker } from "@/hooks/use-gps-tracker";
 import { useStreetMatchedRoute } from "@/hooks/use-street-matched-route";
 import { useMoverseStore } from "@/store/use-moverse-store";
 import { MODE_LABEL, SPORT_META, type MoveEvent, type MoveSpot } from "@/types/moverse";
 import { Onboarding } from "./onboarding";
 import { BumpOverlay } from "./bump-overlay";
+import { MoverAvatar } from "./mover-avatar";
 import { MyVerse } from "./my-verse";
 import { CreateEventModal, EventFlowModal, type CreateEventInput } from "./activity-flow";
 import { SocialPanel } from "./social-panel";
 import { SportIcon } from "./sport-icon";
-import type { WorldMapViewport } from "./world-map";
+import type { WorldMapPerson, WorldMapViewport } from "./world-map";
 
 const WorldMap = dynamic(() => import("./world-map").then((mod) => mod.WorldMap), {
   ssr: false,
   loading: () => <MapLoading />,
 });
 
+const MAP_SPOTS: readonly MoveSpot[] = [...DEMO_SPOTS, ...SEOUL_DISCOVERY_STOPS];
+const MAP_SPOT_BY_ID = new Map(MAP_SPOTS.map((spot) => [spot.id, spot] as const));
+
 type MainTab = "map" | "activity" | "move" | "social" | "verse";
 
 const SEOUL_WIDE_DISTANCE_KM = 12;
+
+const DEMO_MAP_PEOPLE: readonly WorldMapPerson[] = [
+  {
+    id: "lumi",
+    nickname: "LUMI",
+    modelId: "lumi",
+    longitude: 126.93375,
+    latitude: 37.52718,
+    visibility: "precise",
+    status: "러닝 메이트 찾는 중",
+    updatedAt: "방금",
+    expiresAt: "21:00",
+    accuracyMeters: 12,
+    bearing: 24,
+    moving: true,
+  },
+  {
+    id: "dash",
+    nickname: "DASH",
+    modelId: "dash",
+    longitude: 126.9391,
+    latitude: 37.5237,
+    visibility: "approximate",
+    status: "주말 농구 가능",
+    updatedAt: "3분 전",
+    expiresAt: "20:30",
+    accuracyMeters: 180,
+    bearing: -38,
+  },
+  {
+    id: "mint",
+    nickname: "MINT",
+    modelId: "mint",
+    longitude: 126.9354,
+    latitude: 37.5226,
+    visibility: "precise",
+    status: "한강 플로깅 중",
+    updatedAt: "1분 전",
+    expiresAt: "20:45",
+    accuracyMeters: 18,
+    bearing: 12,
+    moving: true,
+  },
+] as const;
 
 function distanceFromViewportCenterKm(
   center: WorldMapViewport["center"],
@@ -86,6 +138,7 @@ export function MoverseApp() {
   const [activeTab, setActiveTab] = useState<MainTab>("map");
   const [selectedEvent, setSelectedEvent] = useState<MoveEvent | null>(null);
   const [selectedSpot, setSelectedSpot] = useState<MoveSpot | null>(null);
+  const [selectedPerson, setSelectedPerson] = useState<WorldMapPerson | null>(null);
   const [eventFlowOpen, setEventFlowOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createSpot, setCreateSpot] = useState<MoveSpot | null>(null);
@@ -155,13 +208,13 @@ export function MoverseApp() {
   const mapContext = useMemo(() => {
     if (!mapViewport) {
       return {
-        areaName: DEMO_SPOTS[0]?.areaName ?? "서울 전역",
-        visibleSpotCount: DEMO_SPOTS.length,
+        areaName: MAP_SPOTS[0]?.areaName ?? "서울 전역",
+        visibleSpotCount: MAP_SPOTS.length,
         visibleEventCount: store.events.length,
       };
     }
 
-    const nearestSpot = DEMO_SPOTS.reduce<{ distanceKm: number; spot: MoveSpot } | null>(
+    const nearestSpot = MAP_SPOTS.reduce<{ distanceKm: number; spot: MoveSpot } | null>(
       (nearest, spot) => {
         const distanceKm = distanceFromViewportCenterKm(mapViewport.center, spot);
         return !nearest || distanceKm < nearest.distanceKm ? { distanceKm, spot } : nearest;
@@ -187,6 +240,9 @@ export function MoverseApp() {
     setSelectedSpot((spot) =>
       spot && !viewport.visibleSpotIds.includes(spot.id) ? null : spot,
     );
+    setSelectedPerson((person) =>
+      person && !viewport.visiblePersonIds.includes(person.id) ? null : person,
+    );
   }, []);
 
   if (!store.hydrated) {
@@ -204,6 +260,7 @@ export function MoverseApp() {
   const selectEvent = (event: MoveEvent) => {
     setSelectedEvent(event);
     setSelectedSpot(null);
+    setSelectedPerson(null);
   };
 
   const openEvent = (event: MoveEvent) => {
@@ -243,6 +300,7 @@ export function MoverseApp() {
     }
     setSelectedEvent(null);
     setSelectedSpot(null);
+    setSelectedPerson(null);
     setBumpOpen(true);
   };
 
@@ -304,16 +362,33 @@ export function MoverseApp() {
     <div className={`app-viewport ${isNightPreview ? "night-preview" : ""}`}>
       <div className={`app-frame ${moveActive ? "move-mode" : ""}`}>
         <WorldMap
-          spots={DEMO_SPOTS}
+          spots={MAP_SPOTS}
           events={store.events}
+          people={DEMO_MAP_PEOPLE}
+          user={{
+            id: "nova",
+            nickname: store.nickname,
+            initials: store.nickname.slice(0, 1),
+            modelId: "nova",
+            level: store.level,
+          }}
           selectedEventId={selectedEvent?.id ?? null}
           onSelectEvent={(mapEvent) => {
             const event = store.events.find((item) => item.id === mapEvent.id);
             if (event) selectEvent(event);
           }}
           onSelectSpot={(mapSpot) => {
-            const spot = DEMO_SPOTS.find((item) => item.id === mapSpot.id);
-            if (spot) { setSelectedSpot(spot); setSelectedEvent(null); }
+            const spot = MAP_SPOT_BY_ID.get(mapSpot.id);
+            if (spot) {
+              setSelectedSpot(spot);
+              setSelectedEvent(null);
+              setSelectedPerson(null);
+            }
+          }}
+          onSelectPerson={(person) => {
+            setSelectedPerson(person);
+            setSelectedEvent(null);
+            setSelectedSpot(null);
           }}
           isNight={isNightPreview}
           recordedRoute={recordedRoute}
@@ -332,10 +407,29 @@ export function MoverseApp() {
             className="map-place-summary"
             aria-label={`현재 지역: ${mapContext.areaName}, 보이는 스팟 ${mapContext.visibleSpotCount}개, 이벤트 ${mapContext.visibleEventCount}개`}
           >
-            <span className="brand-orbit small">M</span>
+            <button
+              type="button"
+              className="map-profile-trigger"
+              aria-label="NOVA 프로필 열기"
+              onClick={() => {
+                setVerseOpen(true);
+                setActiveTab("verse");
+              }}
+            >
+              <MoverAvatar
+                avatarId="nova"
+                size="xs"
+                status={moveActive ? "moving" : "online"}
+                ring="lime"
+                framing="bust"
+                preload
+              />
+            </button>
             <span>
               <strong>{mapContext.areaName}</strong>
-              <small>{mapContext.visibleSpotCount} 스팟 · {mapContext.visibleEventCount} 이벤트</small>
+              <small>
+                화면 {mapContext.visibleSpotCount} · 서울 {SEOUL_DISCOVERY_STOPS_META.count.toLocaleString()} STOP · 이벤트 {mapContext.visibleEventCount}
+              </small>
             </span>
           </div>
           <div className="resource-row">
@@ -359,7 +453,7 @@ export function MoverseApp() {
           </div>
         </header>
 
-        {!selectedEvent && !selectedSpot && !moveActive && !isNightPreview ? (
+        {!selectedEvent && !selectedSpot && !selectedPerson && !moveActive && !isNightPreview ? (
           <button className="bump-fab" onClick={openBump} aria-label="BUMP 현장 인증 열기">
             <Image src="/moverse-bump-orb.png" width={58} height={58} alt="" priority />
             <span><strong>BUMP</strong><small>현장 인증</small></span>
@@ -408,11 +502,25 @@ export function MoverseApp() {
                 setCreateOpen(true);
                 setSelectedSpot(null);
               }}
+              onDiscovery={(spot) => {
+                setToast(`${spot.name}은 현장 40m 안에서 체크인할 수 있어요.`);
+              }}
+            />
+          )}
+          {selectedPerson && !moveActive && (
+            <PersonPreviewCard
+              person={selectedPerson}
+              onClose={() => setSelectedPerson(null)}
+              onMessage={() => {
+                setSelectedPerson(null);
+                setSocialOpen(true);
+                setActiveTab("social");
+              }}
             />
           )}
         </AnimatePresence>
 
-        {isNightPreview && !selectedEvent && !selectedSpot && !moveActive && (
+        {isNightPreview && !selectedEvent && !selectedSpot && !selectedPerson && !moveActive && (
           <motion.div className="night-message" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
             <span><MoonStar /></span><div><strong>오늘의 활동 스팟은 쉬는 중</strong><p>지금은 내일 참여할 활동을 예약할 수 있어요.</p></div>
             <button onClick={() => setActivityOpen(true)}>일정 보기</button>
@@ -556,23 +664,77 @@ const FACILITY_LABEL = {
   "multi-use-court": "다목적 구장",
 } as const;
 
+function PersonPreviewCard({
+  person,
+  onClose,
+  onMessage,
+}: {
+  person: WorldMapPerson;
+  onClose: () => void;
+  onMessage: () => void;
+}) {
+  const isApproximate = person.visibility === "approximate";
+
+  return (
+    <motion.article
+      className="map-preview-card person-preview-card"
+      initial={{ y: 45, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: 35, opacity: 0 }}
+    >
+      <button className="preview-close" onClick={onClose} aria-label="닫기">
+        <X size={17} />
+      </button>
+      <div className="person-preview-main">
+        <MoverAvatar
+          avatarId={person.modelId}
+          size="lg"
+          status={person.moving ? "moving" : "online"}
+          ring="accent"
+          framing="bust"
+        />
+        <div>
+          <small>서로 연결된 MOVE MATE</small>
+          <h3>{person.nickname}</h3>
+          <p>{person.status ?? "다음 활동을 찾는 중"}</p>
+          <span className={isApproximate ? "is-approximate" : undefined}>
+            <ShieldCheck size={13} />
+            {isApproximate ? `대략 위치 · 반경 ${person.accuracyMeters ?? 150}m` : "정밀 위치 공유 중"}
+          </span>
+        </div>
+      </div>
+      <div className="person-preview-meta">
+        <span><strong>{person.updatedAt ?? "방금"}</strong><small>마지막 갱신</small></span>
+        <span><strong>{person.expiresAt ?? "21:00"}</strong><small>공유 자동 종료</small></span>
+      </div>
+      <button className="card-primary" onClick={onMessage}>
+        다음 일정 잡기 <ChevronRight size={18} />
+      </button>
+    </motion.article>
+  );
+}
+
 function SpotPreviewCard({
   spot,
   events,
   onClose,
   onEvent,
   onCreate,
+  onDiscovery,
 }: {
   spot: MoveSpot;
   events: MoveEvent[];
   onClose: () => void;
   onEvent: (event: MoveEvent) => void;
   onCreate: (spot: MoveSpot) => void;
+  onDiscovery: (spot: MoveSpot) => void;
 }) {
+  const isDiscovery = spot.kind === "discovery" || spot.eventEligible === false;
+
   return (
     <motion.article className="map-preview-card spot-card" initial={{ y: 45, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 35, opacity: 0 }}>
       <button className="preview-close" onClick={onClose} aria-label="닫기"><X size={17} /></button>
-      <div className="spot-heading"><span className={`spot-level-icon ${spot.level}`}><MapPinned size={23} /></span><div><small>인증 스팟 · Lv.{spot.levelNumber}</small><h3>{spot.name}</h3><p>{spot.description}</p></div></div>
+      <div className="spot-heading"><span className={`spot-level-icon ${spot.level}`}><MapPinned size={23} /></span><div><small>{isDiscovery ? "서울 공개 지도 STOP" : `인증 스팟 · Lv.${spot.levelNumber}`}</small><h3>{spot.name}</h3><p>{spot.description}</p></div></div>
       {spot.facility ? (
         <div className="spot-facility">
           <CircleCheckBig size={17} />
@@ -585,9 +747,20 @@ function SpotPreviewCard({
           </a>
         </div>
       ) : null}
+      {isDiscovery && spot.source ? (
+        <a className="spot-source-link" href={spot.source.url} target="_blank" rel="noreferrer">
+          서울시 출입구 데이터 · {spot.source.referenceDate} <ExternalLink size={13} />
+        </a>
+      ) : null}
       <div className="spot-energy"><div><span>스팟 활성도</span><b>{Math.round((spot.energy / spot.energyGoal) * 100)}%</b></div><i><em style={{ width: `${(spot.energy / spot.energyGoal) * 100}%` }} /></i></div>
       {events.length ? <button className="card-primary" onClick={() => onEvent(events[0])}>{events[0].title}<ChevronRight size={18} /></button> : null}
-      <button className="card-secondary spot-create-button" onClick={() => onCreate(spot)}><Plus size={17} /> 이곳에서 활동 열기</button>
+      {isDiscovery ? (
+        <button className="card-secondary spot-create-button" onClick={() => onDiscovery(spot)}>
+          <MapPinned size={17} /> 현장 40m 안에서 체크인
+        </button>
+      ) : (
+        <button className="card-secondary spot-create-button" onClick={() => onCreate(spot)}><Plus size={17} /> 이곳에서 활동 열기</button>
+      )}
     </motion.article>
   );
 }

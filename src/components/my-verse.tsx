@@ -1,8 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Award, ChevronRight, CircleCheck, Flame, Footprints, Route, Users, X } from "lucide-react";
+import { Award, ChevronRight, CircleCheck, Flame, Footprints, Users, X } from "lucide-react";
 import type { ActivityRecord } from "@/types/moverse";
+import { MoverAvatar } from "./mover-avatar";
 import { SportIcon } from "./sport-icon";
 
 type MyVerseProps = {
@@ -30,8 +31,8 @@ export function MyVerse({ open, onClose, level, xp, coin, rhythm, activities, on
       <div className="panel-scroll verse-content">
         <section className="verse-summary">
           <div className="verse-summary-top">
-            <span className="verse-level-mark"><Route size={24} /></span>
-            <div><small>현재 레벨 {level}</small><h3>NOVA의 움직임 기록</h3></div>
+            <MoverAvatar avatarId="nova" size="md" status="online" ring="lime" framing="bust" />
+            <div><small>학생 인증 · 현재 레벨 {level}</small><h3>NOVA의 움직임 기록</h3></div>
             <b>{xp.toLocaleString()} XP</b>
           </div>
           <div className="verse-progress-copy"><span>다음 레벨까지 {300 - (xp % 300)} XP</span><strong>{Math.round(levelProgress)}%</strong></div>
