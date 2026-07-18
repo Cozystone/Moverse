@@ -176,7 +176,7 @@ export const DEMO_MATES: MoveMate[] = [
   {
     id: "lumi",
     nickname: "LUMI",
-    avatar: "🌙",
+    avatar: "L",
     sports: ["running", "badminton"],
     sharedActivities: 3,
     status: "다음 러닝을 찾는 중",
@@ -186,7 +186,7 @@ export const DEMO_MATES: MoveMate[] = [
   {
     id: "dash",
     nickname: "DASH",
-    avatar: "⚡",
+    avatar: "D",
     sports: ["basketball", "football"],
     sharedActivities: 2,
     status: "주말 농구 가능",
@@ -196,7 +196,7 @@ export const DEMO_MATES: MoveMate[] = [
   {
     id: "mint",
     nickname: "MINT",
-    avatar: "🍃",
+    avatar: "M",
     sports: ["walking", "plogging"],
     sharedActivities: 1,
     status: "가볍게 걸어요",

@@ -1,8 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Award, ChevronRight, Flame, Footprints, Sparkles, Users, X } from "lucide-react";
+import { Award, ChevronRight, CircleCheck, Flame, Footprints, Route, Users, X } from "lucide-react";
 import type { ActivityRecord } from "@/types/moverse";
+import { SportIcon } from "./sport-icon";
 
 type MyVerseProps = {
   open: boolean;
@@ -21,29 +22,25 @@ export function MyVerse({ open, onClose, level, xp, coin, rhythm, activities, on
 
   return (
     <motion.section className="full-panel verse-panel" initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}>
-      <header className="panel-header overlay-header">
-        <div><small>나의 움직임이 만든 세계</small><h2>My Verse</h2></div>
-        <button className="round-icon-btn glass" onClick={onClose} aria-label="My Verse 닫기"><X size={21} /></button>
+      <header className="panel-header">
+        <div><small>NOVA의 활동 기록</small><h2>성장</h2></div>
+        <button className="round-icon-btn" onClick={onClose} aria-label="성장 화면 닫기"><X size={21} /></button>
       </header>
 
-      <div className="verse-hero">
-        <div className="verse-stars"><i /><i /><i /><i /><i /></div>
-        <div className="verse-planet" aria-label="활동으로 성장한 나의 행성">
-          <div className="planet-atmosphere" />
-          <div className="planet-land land-one" />
-          <div className="planet-land land-two" />
-          <div className="planet-path" />
-          <div className="planet-tree tree-a">♣</div>
-          <div className="planet-tree tree-b">♣</div>
-          <div className="planet-building">▥</div>
-          <div className="planet-runner">🏃</div>
-        </div>
-        <div className="level-orbit"><span>LV.{level}</span></div>
-        <div className="verse-title"><strong>새싹길이 열린 NOVA</strong><span>다음 성장까지 {300 - (xp % 300)} XP</span></div>
-        <div className="verse-progress"><motion.i initial={{ width: 0 }} animate={{ width: `${levelProgress}%` }} /></div>
-      </div>
-
       <div className="panel-scroll verse-content">
+        <section className="verse-summary">
+          <div className="verse-summary-top">
+            <span className="verse-level-mark"><Route size={24} /></span>
+            <div><small>현재 레벨 {level}</small><h3>NOVA의 움직임 기록</h3></div>
+            <b>{xp.toLocaleString()} XP</b>
+          </div>
+          <div className="verse-progress-copy"><span>다음 레벨까지 {300 - (xp % 300)} XP</span><strong>{Math.round(levelProgress)}%</strong></div>
+          <div className="verse-progress" role="progressbar" aria-label="다음 레벨 진행률" aria-valuenow={Math.round(levelProgress)} aria-valuemin={0} aria-valuemax={100}>
+            <motion.i initial={{ width: 0 }} animate={{ width: `${levelProgress}%` }} />
+          </div>
+          <p><CircleCheck size={16} /> 활동을 완료할수록 스팟 개설 권한과 주최 레벨이 올라가요.</p>
+        </section>
+
         <div className="verse-stats">
           <div><span className="stat-icon lime"><Footprints /></span><strong>12.8km</strong><small>함께 이동</small></div>
           <div><span className="stat-icon violet"><Users /></span><strong>6명</strong><small>만난 무버</small></div>
@@ -51,7 +48,7 @@ export function MyVerse({ open, onClose, level, xp, coin, rhythm, activities, on
         </div>
 
         <section className="verse-card rhythm-card">
-          <div className="section-row"><div><small>MOVE RHYTHM</small><h3>이번 주, 한 번만 더</h3></div><span>{rhythm}/3</span></div>
+          <div className="section-row"><div><small>주간 활동 목표</small><h3>이번 주, 한 번만 더</h3></div><span>{rhythm}/3</span></div>
           <div className="rhythm-days">
             {["월", "화", "수", "목", "금", "토", "일"].map((day, index) => (
               <div key={day} className={index === 1 || index === 3 || (rhythm >= 3 && index === 5) ? "done" : index === 5 ? "next" : ""}>
@@ -59,7 +56,7 @@ export function MyVerse({ open, onClose, level, xp, coin, rhythm, activities, on
               </div>
             ))}
           </div>
-          <p><Sparkles size={15} /> 한 번 더 움직이면 행성에 <strong>빛의 러닝 트랙</strong>이 생겨요.</p>
+          <p><CircleCheck size={15} /> 한 번 더 움직이면 이번 주 목표를 달성해요.</p>
         </section>
 
         <section className="verse-section">
@@ -70,7 +67,7 @@ export function MyVerse({ open, onClose, level, xp, coin, rhythm, activities, on
               { id: "a2", eventId: "demo2", title: "커뮤니티 배드민턴", sport: "badminton", date: "3일 전", durationMinutes: 35, coin: 26, xp: 140 },
             ] as ActivityRecord[]).slice(0, 3).map((activity) => (
               <div className="activity-row" key={activity.id}>
-                <span>{activity.sport === "running" ? "🏃" : activity.sport === "basketball" ? "🏀" : "🏸"}</span>
+                <span><SportIcon sport={activity.sport} size={19} /></span>
                 <p><strong>{activity.title}</strong><small>{activity.date} · {activity.durationMinutes}분</small></p>
                 <em>+{activity.xp} XP</em>
               </div>
@@ -79,7 +76,7 @@ export function MyVerse({ open, onClose, level, xp, coin, rhythm, activities, on
         </section>
 
         <section className="verse-card host-card">
-          <span><Award /></span><div><small>HOST LEVEL 3</small><strong>새로운 움직임을 여는 사람</strong><p>다음 레벨에서 정기 Event를 만들 수 있어요.</p></div><b>{coin} C</b>
+          <span><Award /></span><div><small>주최 레벨 3</small><strong>새로운 움직임을 여는 사람</strong><p>다음 레벨에서 정기 활동을 만들 수 있어요.</p></div><b>{coin} C</b>
         </section>
         <button className="demo-reset" onClick={onReset}>데모 데이터 초기화</button>
       </div>

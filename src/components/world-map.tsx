@@ -6,12 +6,12 @@ import type {
   Feature,
   FeatureCollection,
   LineString,
-  Polygon,
+  Point,
 } from "geojson";
 import type {
   GeoJSONSource,
   Map as MapLibreMap,
-  Marker as MapLibreMarker,
+  MapMouseEvent,
   StyleSpecification,
 } from "maplibre-gl";
 import {
@@ -201,14 +201,51 @@ const DEFAULT_EVENTS: readonly WorldMapEvent[] = [
 
 const SPORT_META: Record<
   WorldMapSport,
-  { label: string; symbol: string; tone: string }
+  { label: string; symbol: string; color: string }
 > = {
-  running: { label: "러닝", symbol: "↗", tone: "lime" },
-  walking: { label: "걷기", symbol: "⌁", tone: "mint" },
-  basketball: { label: "농구", symbol: "●", tone: "orange" },
-  football: { label: "축구", symbol: "◆", tone: "green" },
-  badminton: { label: "배드민턴", symbol: "✦", tone: "sky" },
-  plogging: { label: "플로깅", symbol: "♧", tone: "teal" },
+  running: { label: "러닝", symbol: "런", color: "#42b883" },
+  walking: { label: "걷기", symbol: "걷", color: "#2ca58d" },
+  basketball: { label: "농구", symbol: "농", color: "#e77b3b" },
+  football: { label: "축구", symbol: "축", color: "#278a55" },
+  badminton: { label: "배드민턴", symbol: "배", color: "#388fc4" },
+  plogging: { label: "플로깅", symbol: "줍", color: "#318a78" },
+};
+
+const SPOT_COLOR: Record<WorldMapSpotLevel, string> = {
+  seed: "#79a944",
+  trail: "#4b9d73",
+  active: "#238863",
+  pulse: "#247f86",
+  landmark: "#176f55",
+};
+
+type SpotFeatureProperties = {
+  id: string;
+  label: string;
+  symbol: string;
+  color: string;
+  selected: number;
+  levelLabel: string;
+};
+
+type EventFeatureProperties = {
+  id: string;
+  index: number;
+  label: string;
+  symbol: string;
+  color: string;
+  selected: number;
+  live: number;
+};
+
+type UserFeatureProperties = {
+  initials: string;
+  moving: number;
+};
+
+const EMPTY_POINT_COLLECTION: FeatureCollection<Point> = {
+  type: "FeatureCollection",
+  features: [],
 };
 
 const ROUTE_OFFSETS: readonly WorldMapCoordinate[] = [
@@ -282,62 +319,10 @@ function makeLineFeature(
   };
 }
 
-function createBuildingCollection(
-  center: WorldMapCoordinate,
-): FeatureCollection<Polygon, { height: number; base: number; tint: string }> {
-  const blocks: Array<
-    [x: number, y: number, width: number, depth: number, height: number, tint: string]
-  > = [
-    [-0.0045, 0.0028, 0.00072, 0.00042, 46, "#b8d8cc"],
-    [-0.0036, 0.00255, 0.00046, 0.00078, 72, "#b5cfe0"],
-    [-0.0027, 0.003, 0.00058, 0.0005, 34, "#d5dbc4"],
-    [-0.0017, 0.00265, 0.00072, 0.00046, 92, "#adc9cf"],
-    [-0.0006, 0.0028, 0.00056, 0.00068, 58, "#c7d8d1"],
-    [0.0004, 0.00255, 0.00042, 0.0005, 110, "#b5ccd6"],
-    [0.0014, 0.0027, 0.00075, 0.00044, 54, "#cbd8c4"],
-    [0.0026, 0.0024, 0.00048, 0.00072, 78, "#b9d4ca"],
-    [0.0037, 0.0026, 0.00068, 0.00047, 42, "#d2d7c5"],
-    [-0.0042, -0.0025, 0.00055, 0.0008, 64, "#b4cbd5"],
-    [-0.0031, -0.0028, 0.0008, 0.00048, 38, "#cbd8c3"],
-    [-0.002, -0.0025, 0.0005, 0.00064, 84, "#acc8d0"],
-    [-0.0009, -0.0027, 0.00065, 0.00045, 48, "#d2d8c8"],
-    [0.0002, -0.00245, 0.00046, 0.0008, 104, "#aac7d2"],
-    [0.0012, -0.00275, 0.00072, 0.00046, 52, "#c7d4c0"],
-    [0.00235, -0.00245, 0.0005, 0.00072, 70, "#b4d0ca"],
-    [0.00335, -0.0027, 0.00076, 0.00045, 44, "#d0d7c5"],
-  ];
-
-  return {
-    type: "FeatureCollection",
-    features: blocks.map(([x, y, width, depth, height, tint]) => {
-      const west = center[0] + x - width / 2;
-      const east = center[0] + x + width / 2;
-      const south = center[1] + y - depth / 2;
-      const north = center[1] + y + depth / 2;
-
-      return {
-        type: "Feature",
-        properties: { height, base: 0, tint },
-        geometry: {
-          type: "Polygon",
-          coordinates: [
-            [
-              [west, south],
-              [east, south],
-              [east, north],
-              [west, north],
-              [west, south],
-            ],
-          ],
-        },
-      };
-    }),
-  };
-}
-
 function createKeylessStyle(isNight: boolean): StyleSpecification {
   return {
     version: 8,
+    glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
     sources: {
       osm: {
         type: "raster",
@@ -355,8 +340,8 @@ function createKeylessStyle(isNight: boolean): StyleSpecification {
         id: "moverse-background",
         type: "background",
         paint: {
-          "background-color": isNight ? "#081b2c" : "#bcebc9",
-          "background-opacity": 0.24,
+          "background-color": isNight ? "#14242d" : "#d9e3dc",
+          "background-opacity": 1,
         },
       },
       {
@@ -364,230 +349,333 @@ function createKeylessStyle(isNight: boolean): StyleSpecification {
         type: "raster",
         source: "osm",
         paint: {
-          "raster-opacity": isNight ? 0.56 : 0.76,
-          "raster-saturation": isNight ? -0.72 : -0.25,
-          "raster-contrast": isNight ? 0.18 : -0.08,
-          "raster-brightness-min": isNight ? 0.05 : 0.35,
-          "raster-brightness-max": isNight ? 0.42 : 1,
+          "raster-opacity": isNight ? 0.66 : 0.92,
+          "raster-saturation": isNight ? -0.78 : -0.12,
+          "raster-contrast": isNight ? 0.12 : 0.02,
+          "raster-brightness-min": isNight ? 0.06 : 0.2,
+          "raster-brightness-max": isNight ? 0.46 : 0.98,
         },
       },
     ],
   };
 }
 
-function positionForFallback(
-  longitude: number,
-  latitude: number,
-  center: WorldMapCoordinate,
-) {
+function createSpotCollection(
+  spots: readonly WorldMapSpot[],
+  selectedSpotId: string | null | undefined,
+): FeatureCollection<Point, SpotFeatureProperties> {
   return {
-    left: `${clamp(50 + (longitude - center[0]) * 2350, 8, 92)}%`,
-    top: `${clamp(48 - (latitude - center[1]) * 3500, 15, 82)}%`,
+    type: "FeatureCollection",
+    features: spots.map((spot) => {
+      const level = spot.level ?? "active";
+      return {
+        type: "Feature",
+        properties: {
+          id: spot.id,
+          label: spot.shortName ?? spot.name,
+          symbol: level === "seed" ? "+" : "M",
+          color: SPOT_COLOR[level],
+          selected: selectedSpotId === spot.id ? 1 : 0,
+          levelLabel: `${spot.levelNumber ?? 1}단계`,
+        },
+        geometry: {
+          type: "Point",
+          coordinates: [spot.longitude, spot.latitude],
+        },
+      };
+    }),
   };
 }
 
-function createSpotElement(
-  spot: WorldMapSpot,
-  selected: boolean,
-  onClick: () => void,
+function createEventCollection(
+  events: readonly WorldMapEvent[],
+  getCoordinate: (event: WorldMapEvent, index: number) => WorldMapCoordinate,
+  selectedEventId: string | null | undefined,
+): FeatureCollection<Point, EventFeatureProperties> {
+  return {
+    type: "FeatureCollection",
+    features: events.map((event, index) => {
+      const meta = SPORT_META[event.sport];
+      const live = event.status === "active" || event.status === "check-in";
+      return {
+        type: "Feature",
+        properties: {
+          id: event.id,
+          index,
+          label: event.startLabel
+            ? `${meta.label} · ${event.startLabel}`
+            : meta.label,
+          symbol: meta.symbol,
+          color: meta.color,
+          selected: selectedEventId === event.id ? 1 : 0,
+          live: live ? 1 : 0,
+        },
+        geometry: { type: "Point", coordinates: getCoordinate(event, index) },
+      };
+    }),
+  };
+}
+
+function createUserCollection(
+  position: WorldMapCoordinate,
+  user: WorldMapUser,
+  moving: boolean,
+): FeatureCollection<Point, UserFeatureProperties> {
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {
+          initials: (user.initials ?? user.nickname?.slice(0, 1) ?? "N").slice(0, 2),
+          moving: moving ? 1 : 0,
+        },
+        geometry: { type: "Point", coordinates: position },
+      },
+    ],
+  };
+}
+
+function addMapLayers(
+  map: MapLibreMap,
+  route: readonly WorldMapCoordinate[],
+  isNight: boolean,
 ) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = `mw-marker mw-spot-marker mw-spot-marker--${spot.level ?? "active"}${
-    selected ? " is-selected" : ""
-  }`;
-  button.setAttribute(
-    "aria-label",
-    `${spot.name} Move Spot${spot.distanceLabel ? `, ${spot.distanceLabel}` : ""}`,
-  );
-  button.title = spot.name;
+  map.addSource("moverse-route", {
+    type: "geojson",
+    lineMetrics: true,
+    data: makeLineFeature(route),
+  });
+  map.addLayer({
+    id: "moverse-route-base",
+    type: "line",
+    source: "moverse-route",
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: {
+      "line-color": isNight ? "#183f37" : "#ffffff",
+      "line-width": 7,
+      "line-opacity": isNight ? 0.62 : 0.82,
+    },
+  });
+  map.addLayer({
+    id: "moverse-route-line",
+    type: "line",
+    source: "moverse-route",
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: {
+      "line-color": isNight ? "#55caa6" : "#258d65",
+      "line-width": 3,
+      "line-opacity": 0.92,
+      "line-dasharray": [1, 1.5],
+    },
+  });
 
-  const halo = document.createElement("span");
-  halo.className = "mw-marker__halo";
-  halo.setAttribute("aria-hidden", "true");
+  map.addSource("moverse-progress", {
+    type: "geojson",
+    data: makeLineFeature(progressCoordinates(route, 0)),
+  });
+  map.addLayer({
+    id: "moverse-progress-line",
+    type: "line",
+    source: "moverse-progress",
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: {
+      "line-color": isNight ? "#d7fff3" : "#163e34",
+      "line-width": 4.5,
+      "line-opacity": 0.94,
+    },
+  });
 
-  const beam = document.createElement("span");
-  beam.className = "mw-spot-marker__beam";
-  beam.setAttribute("aria-hidden", "true");
+  map.addSource("moverse-spots", {
+    type: "geojson",
+    data: EMPTY_POINT_COLLECTION,
+  });
+  map.addLayer({
+    id: "moverse-spots-halo",
+    type: "circle",
+    source: "moverse-spots",
+    paint: {
+      "circle-radius": ["case", ["==", ["get", "selected"], 1], 24, 18],
+      "circle-color": ["get", "color"],
+      "circle-opacity": isNight ? 0.28 : 0.2,
+      "circle-blur": 0.35,
+      "circle-pitch-alignment": "map",
+    },
+  });
+  map.addLayer({
+    id: "moverse-spots-core",
+    type: "circle",
+    source: "moverse-spots",
+    paint: {
+      "circle-radius": ["case", ["==", ["get", "selected"], 1], 12, 9],
+      "circle-color": ["get", "color"],
+      "circle-stroke-color": "#ffffff",
+      "circle-stroke-width": ["case", ["==", ["get", "selected"], 1], 3, 2],
+      "circle-opacity": 0.98,
+      "circle-pitch-alignment": "map",
+    },
+  });
+  map.addLayer({
+    id: "moverse-spots-symbol",
+    type: "symbol",
+    source: "moverse-spots",
+    layout: {
+      "text-field": ["get", "symbol"],
+      "text-font": ["Noto Sans Regular"],
+      "text-size": 10,
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+    },
+    paint: { "text-color": "#ffffff" },
+  });
+  map.addLayer({
+    id: "moverse-spots-label",
+    type: "symbol",
+    source: "moverse-spots",
+    layout: {
+      "text-field": ["get", "label"],
+      "text-font": ["Noto Sans Regular"],
+      "text-size": 10,
+      "text-anchor": "top",
+      "text-offset": [0, 1.35],
+      "text-max-width": 12,
+      "text-optional": true,
+      "text-padding": 6,
+    },
+    paint: {
+      "text-color": isNight ? "#f4fbf8" : "#18322d",
+      "text-halo-color": isNight ? "#10252b" : "#ffffff",
+      "text-halo-width": 2,
+    },
+  });
+  map.addLayer({
+    id: "moverse-spots-hit",
+    type: "circle",
+    source: "moverse-spots",
+    paint: { "circle-radius": 24, "circle-opacity": 0 },
+  });
 
-  const tower = document.createElement("span");
-  tower.className = "mw-spot-marker__tower";
-  tower.setAttribute("aria-hidden", "true");
+  map.addSource("moverse-events", {
+    type: "geojson",
+    data: EMPTY_POINT_COLLECTION,
+  });
+  map.addLayer({
+    id: "moverse-events-halo",
+    type: "circle",
+    source: "moverse-events",
+    paint: {
+      "circle-radius": [
+        "case",
+        ["==", ["get", "selected"], 1],
+        25,
+        ["==", ["get", "live"], 1],
+        22,
+        18,
+      ],
+      "circle-color": ["get", "color"],
+      "circle-opacity": [
+        "case",
+        ["==", ["get", "live"], 1],
+        isNight ? 0.34 : 0.26,
+        isNight ? 0.24 : 0.18,
+      ],
+      "circle-blur": 0.4,
+      "circle-pitch-alignment": "map",
+    },
+  });
+  map.addLayer({
+    id: "moverse-events-core",
+    type: "circle",
+    source: "moverse-events",
+    paint: {
+      "circle-radius": ["case", ["==", ["get", "selected"], 1], 13, 10],
+      "circle-color": ["get", "color"],
+      "circle-stroke-color": "#ffffff",
+      "circle-stroke-width": ["case", ["==", ["get", "selected"], 1], 3, 2],
+      "circle-opacity": 0.98,
+      "circle-pitch-alignment": "map",
+    },
+  });
+  map.addLayer({
+    id: "moverse-events-symbol",
+    type: "symbol",
+    source: "moverse-events",
+    layout: {
+      "text-field": ["get", "symbol"],
+      "text-font": ["Noto Sans Regular"],
+      "text-size": 10,
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+    },
+    paint: { "text-color": "#ffffff" },
+  });
+  map.addLayer({
+    id: "moverse-events-label",
+    type: "symbol",
+    source: "moverse-events",
+    layout: {
+      "text-field": ["get", "label"],
+      "text-font": ["Noto Sans Regular"],
+      "text-size": 10,
+      "text-anchor": "top",
+      "text-offset": [0, 1.55],
+      "text-max-width": 14,
+      "text-optional": true,
+      "text-padding": 8,
+    },
+    paint: {
+      "text-color": isNight ? "#f4fbf8" : "#1b2f2a",
+      "text-halo-color": isNight ? "#10252b" : "#ffffff",
+      "text-halo-width": 2,
+    },
+  });
+  map.addLayer({
+    id: "moverse-events-hit",
+    type: "circle",
+    source: "moverse-events",
+    paint: { "circle-radius": 26, "circle-opacity": 0 },
+  });
 
-  const core = document.createElement("span");
-  core.className = "mw-spot-marker__core";
-  core.textContent = spot.level === "seed" ? "+" : "M";
-
-  const level = document.createElement("span");
-  level.className = "mw-spot-marker__level";
-  level.textContent = `LV.${spot.levelNumber ?? 1}`;
-
-  const label = document.createElement("span");
-  label.className = "mw-marker__label";
-  label.textContent = spot.shortName ?? spot.name;
-
-  tower.append(core);
-  button.append(halo, beam, tower, level, label);
-  button.addEventListener("click", onClick);
-  return button;
-}
-
-function createEventElement(
-  event: WorldMapEvent,
-  selected: boolean,
-  onClick: () => void,
-) {
-  const meta = SPORT_META[event.sport];
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = `mw-marker mw-event-marker mw-event-marker--${meta.tone}${
-    event.status === "active" || event.status === "check-in" ? " is-live" : ""
-  }${selected ? " is-selected" : ""}`;
-  button.setAttribute(
-    "aria-label",
-    `${meta.label} 이벤트, ${event.title}${event.startLabel ? `, ${event.startLabel}` : ""}`,
-  );
-  button.title = event.title;
-
-  const rings = document.createElement("span");
-  rings.className = "mw-event-marker__rings";
-  rings.setAttribute("aria-hidden", "true");
-
-  const orb = document.createElement("span");
-  orb.className = "mw-event-marker__orb";
-  orb.setAttribute("aria-hidden", "true");
-
-  const symbol = document.createElement("span");
-  symbol.className = "mw-event-marker__symbol";
-  symbol.textContent = meta.symbol;
-  symbol.setAttribute("aria-hidden", "true");
-
-  const badge = document.createElement("span");
-  badge.className = "mw-event-marker__badge";
-  badge.textContent = event.status === "active" || event.status === "check-in" ? "LIVE" : meta.label;
-
-  const label = document.createElement("span");
-  label.className = "mw-marker__label mw-marker__label--event";
-  label.textContent = event.startLabel
-    ? `${event.title} · ${event.startLabel}`
-    : event.title;
-
-  orb.append(symbol);
-  button.append(rings, orb, badge, label);
-  button.addEventListener("click", onClick);
-  return button;
-}
-
-function createUserElement(user: WorldMapUser, moving: boolean) {
-  const root = document.createElement("div");
-  root.className = `mw-player${moving ? " is-moving" : ""}`;
-  root.setAttribute("aria-label", `${user.nickname ?? "NOVA"}의 현재 위치`);
-  root.setAttribute("role", "img");
-
-  const compass = document.createElement("span");
-  compass.className = "mw-player__direction";
-  compass.setAttribute("aria-hidden", "true");
-
-  const aura = document.createElement("span");
-  aura.className = "mw-player__aura";
-  aura.setAttribute("aria-hidden", "true");
-
-  const avatar = document.createElement("span");
-  avatar.className = "mw-player__avatar";
-  if (user.avatarUrl) {
-    const image = document.createElement("img");
-    image.src = user.avatarUrl;
-    image.alt = "";
-    image.referrerPolicy = "no-referrer";
-    avatar.append(image);
-  } else {
-    avatar.textContent = user.initials ?? "N";
-  }
-
-  const shadow = document.createElement("span");
-  shadow.className = "mw-player__shadow";
-  shadow.setAttribute("aria-hidden", "true");
-
-  root.append(compass, aura, shadow, avatar);
-  return root;
-}
-
-function FallbackSpotMarker({
-  spot,
-  center,
-  selected,
-  disabled,
-  onSelect,
-}: {
-  spot: WorldMapSpot;
-  center: WorldMapCoordinate;
-  selected: boolean;
-  disabled: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={`mw-fallback-marker mw-spot-marker mw-spot-marker--${spot.level ?? "active"}${
-        selected ? " is-selected" : ""
-      }`}
-      style={positionForFallback(spot.longitude, spot.latitude, center)}
-      tabIndex={disabled ? -1 : 0}
-      aria-hidden={disabled}
-      aria-label={`${spot.name} Move Spot`}
-      onClick={onSelect}
-    >
-      <span className="mw-marker__halo" aria-hidden="true" />
-      <span className="mw-spot-marker__beam" aria-hidden="true" />
-      <span className="mw-spot-marker__tower" aria-hidden="true">
-        <span className="mw-spot-marker__core">{spot.level === "seed" ? "+" : "M"}</span>
-      </span>
-      <span className="mw-spot-marker__level">LV.{spot.levelNumber ?? 1}</span>
-      <span className="mw-marker__label">{spot.shortName ?? spot.name}</span>
-    </button>
-  );
-}
-
-function FallbackEventMarker({
-  event,
-  coordinate,
-  center,
-  selected,
-  disabled,
-  onSelect,
-}: {
-  event: WorldMapEvent;
-  coordinate: WorldMapCoordinate;
-  center: WorldMapCoordinate;
-  selected: boolean;
-  disabled: boolean;
-  onSelect: () => void;
-}) {
-  const meta = SPORT_META[event.sport];
-  return (
-    <button
-      type="button"
-      className={`mw-fallback-marker mw-event-marker mw-event-marker--${meta.tone}${
-        event.status === "active" || event.status === "check-in" ? " is-live" : ""
-      }${selected ? " is-selected" : ""}`}
-      style={positionForFallback(coordinate[0], coordinate[1], center)}
-      tabIndex={disabled ? -1 : 0}
-      aria-hidden={disabled}
-      aria-label={`${meta.label} 이벤트, ${event.title}`}
-      onClick={onSelect}
-    >
-      <span className="mw-event-marker__rings" aria-hidden="true" />
-      <span className="mw-event-marker__orb" aria-hidden="true">
-        <span className="mw-event-marker__symbol">{meta.symbol}</span>
-      </span>
-      <span className="mw-event-marker__badge">
-        {event.status === "active" || event.status === "check-in" ? "LIVE" : meta.label}
-      </span>
-      <span className="mw-marker__label mw-marker__label--event">
-        {event.title}
-      </span>
-    </button>
-  );
+  map.addSource("moverse-user", {
+    type: "geojson",
+    data: EMPTY_POINT_COLLECTION,
+  });
+  map.addLayer({
+    id: "moverse-user-aura",
+    type: "circle",
+    source: "moverse-user",
+    paint: {
+      "circle-radius": ["case", ["==", ["get", "moving"], 1], 27, 21],
+      "circle-color": "#1e8f68",
+      "circle-opacity": 0.2,
+      "circle-blur": 0.25,
+      "circle-pitch-alignment": "map",
+    },
+  });
+  map.addLayer({
+    id: "moverse-user-core",
+    type: "circle",
+    source: "moverse-user",
+    paint: {
+      "circle-radius": 13,
+      "circle-color": isNight ? "#d5fff0" : "#173f36",
+      "circle-stroke-color": "#ffffff",
+      "circle-stroke-width": 3,
+    },
+  });
+  map.addLayer({
+    id: "moverse-user-label",
+    type: "symbol",
+    source: "moverse-user",
+    layout: {
+      "text-field": ["get", "initials"],
+      "text-font": ["Noto Sans Regular"],
+      "text-size": 10,
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+    },
+    paint: { "text-color": isNight ? "#173f36" : "#ffffff" },
+  });
 }
 
 export function WorldMap({
@@ -609,9 +697,6 @@ export function WorldMap({
 }: WorldMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const mapModuleRef = useRef<typeof import("maplibre-gl") | null>(null);
-  const markerRefs = useRef<MapLibreMarker[]>([]);
-  const userMarkerRef = useRef<MapLibreMarker | null>(null);
   const initialNightRef = useRef(isNight);
   const [mapState, setMapState] = useState<MapState>("loading");
   const [mapBooted, setMapBooted] = useState(false);
@@ -673,7 +758,7 @@ export function WorldMap({
       mapRef.current?.easeTo({
         center: [spot.longitude, spot.latitude],
         zoom: 16.35,
-        pitch: 62,
+        pitch: 48,
         duration: 720,
       });
     },
@@ -688,11 +773,34 @@ export function WorldMap({
       mapRef.current?.easeTo({
         center: eventCoordinate(event, index),
         zoom: 16.65,
-        pitch: 64,
+        pitch: 48,
         duration: 720,
       });
     },
     [eventCoordinate, onSelectEvent],
+  );
+
+  const interactionRef = useRef({ spots, events, selectSpot, selectEvent });
+  useEffect(() => {
+    interactionRef.current = { spots, events, selectSpot, selectEvent };
+  }, [events, selectEvent, selectSpot, spots]);
+
+  const spotCollection = useMemo(
+    () => createSpotCollection(spots, actualSelectedSpotId),
+    [actualSelectedSpotId, spots],
+  );
+  const eventCollection = useMemo(
+    () => createEventCollection(events, eventCoordinate, actualSelectedEventId),
+    [actualSelectedEventId, eventCoordinate, events],
+  );
+  const userCollection = useMemo(
+    () =>
+      createUserCollection(
+        currentUserPosition,
+        user,
+        progress > 0 && progress < 1,
+      ),
+    [currentUserPosition, progress, user],
   );
 
   useEffect(() => {
@@ -706,17 +814,16 @@ export function WorldMap({
         const maplibre = await import("maplibre-gl");
         if (disposed || !mapContainerRef.current) return;
 
-        mapModuleRef.current = maplibre;
         map = new maplibre.Map({
           container: mapContainerRef.current,
           style: createKeylessStyle(initialNightRef.current),
           center: stableCenter,
-          zoom: 15.35,
-          pitch: 58,
+          zoom: 14.95,
+          pitch: 42,
           bearing: -18,
           minZoom: 12,
           maxZoom: 19,
-          maxPitch: 72,
+          maxPitch: 60,
           attributionControl: false,
           renderWorldCopies: false,
           fadeDuration: 0,
@@ -728,7 +835,7 @@ export function WorldMap({
           new maplibre.AttributionControl({ compact: true }),
           "bottom-right",
         );
-        map.getCanvas().setAttribute("aria-label", "Moverse 여의도 3D 활동 지도");
+        map.getCanvas().setAttribute("aria-label", "Moverse 여의도 활동 지도");
         map.getCanvas().setAttribute("role", "region");
 
         const onLoad = () => {
@@ -736,78 +843,50 @@ export function WorldMap({
           if (loadTimer) clearTimeout(loadTimer);
 
           try {
-            map.addSource("moverse-buildings", {
-              type: "geojson",
-              data: createBuildingCollection(stableCenter),
-            });
-            map.addLayer({
-              id: "moverse-buildings",
-              type: "fill-extrusion",
-              source: "moverse-buildings",
-              minzoom: 13,
-              paint: {
-                "fill-extrusion-color": ["get", "tint"],
-                "fill-extrusion-height": ["get", "height"],
-                "fill-extrusion-base": ["get", "base"],
-                "fill-extrusion-opacity": initialNightRef.current ? 0.42 : 0.62,
-                "fill-extrusion-vertical-gradient": true,
-              },
-            });
+            addMapLayers(map, route, initialNightRef.current);
 
-            map.addSource("moverse-route", {
-              type: "geojson",
-              lineMetrics: true,
-              data: makeLineFeature(route),
-            });
-            map.addLayer({
-              id: "moverse-route-glow",
-              type: "line",
-              source: "moverse-route",
-              layout: { "line-cap": "round", "line-join": "round" },
-              paint: {
-                "line-color": initialNightRef.current ? "#40f5c5" : "#35d6a1",
-                "line-width": 8,
-                "line-blur": 9,
-                "line-opacity": 0.3,
-              },
-            });
-            map.addLayer({
-              id: "moverse-route-line",
-              type: "line",
-              source: "moverse-route",
-              layout: { "line-cap": "round", "line-join": "round" },
-              paint: {
-                "line-width": 3.4,
-                "line-opacity": 0.88,
-                "line-gradient": [
-                  "interpolate",
-                  ["linear"],
-                  ["line-progress"],
-                  0,
-                  "#68f0b0",
-                  0.55,
-                  "#d9f763",
-                  1,
-                  "#52d7ff",
-                ],
-              },
-            });
-            map.addSource("moverse-progress", {
-              type: "geojson",
-              data: makeLineFeature(progressCoordinates(route, 0)),
-            });
-            map.addLayer({
-              id: "moverse-progress-line",
-              type: "line",
-              source: "moverse-progress",
-              layout: { "line-cap": "round", "line-join": "round" },
-              paint: {
-                "line-color": "#ffffff",
-                "line-width": 5.5,
-                "line-opacity": 0.9,
-                "line-blur": 1.2,
-              },
-            });
+            const onMapClick = (event: MapMouseEvent) => {
+              if (!map) return;
+              const features = map.queryRenderedFeatures(event.point, {
+                layers: ["moverse-events-hit", "moverse-spots-hit"],
+              });
+              const feature = features[0];
+              const id = feature?.properties?.id;
+              if (typeof id !== "string") return;
+
+              if (feature.source === "moverse-events") {
+                const index = Number(feature.properties?.index);
+                const target = interactionRef.current.events.find(
+                  (candidate) => candidate.id === id,
+                );
+                if (target) {
+                  interactionRef.current.selectEvent(
+                    target,
+                    Number.isFinite(index) ? index : 0,
+                  );
+                }
+                return;
+              }
+
+              const target = interactionRef.current.spots.find(
+                (candidate) => candidate.id === id,
+              );
+              if (target) interactionRef.current.selectSpot(target);
+            };
+            const onPointerMove = (event: MapMouseEvent) => {
+              if (!map) return;
+              const interactive = map.queryRenderedFeatures(event.point, {
+                layers: ["moverse-events-hit", "moverse-spots-hit"],
+              }).length > 0;
+              map.getCanvas().style.cursor = interactive ? "pointer" : "";
+            };
+            const resetPointer = () => {
+              if (map) map.getCanvas().style.cursor = "";
+            };
+
+            map.on("click", onMapClick);
+            map.on("mousemove", onPointerMove);
+            map.on("mouseout", resetPointer);
           } catch {
             setMapState("fallback");
             return;
@@ -844,122 +923,58 @@ export function WorldMap({
     return () => {
       disposed = true;
       if (loadTimer) clearTimeout(loadTimer);
-      markerRefs.current.forEach((marker) => marker.remove());
-      markerRefs.current = [];
-      userMarkerRef.current?.remove();
-      userMarkerRef.current = null;
       map?.remove();
       mapRef.current = null;
-      mapModuleRef.current = null;
     };
   }, [route, stableCenter]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapBooted || !map.isStyleLoaded()) return;
+    if (!map || !mapBooted || mapState !== "ready") return;
 
     try {
       map.setPaintProperty(
         "moverse-background",
         "background-color",
-        isNight ? "#081b2c" : "#bcebc9",
+        isNight ? "#14242d" : "#d9e3dc",
       );
-      map.setPaintProperty("osm", "raster-opacity", isNight ? 0.56 : 0.76);
-      map.setPaintProperty("osm", "raster-saturation", isNight ? -0.72 : -0.25);
-      map.setPaintProperty("osm", "raster-brightness-min", isNight ? 0.05 : 0.35);
-      map.setPaintProperty("osm", "raster-brightness-max", isNight ? 0.42 : 1);
-      if (map.getLayer("moverse-buildings")) {
-        map.setPaintProperty(
-          "moverse-buildings",
-          "fill-extrusion-opacity",
-          isNight ? 0.42 : 0.62,
-        );
-      }
+      map.setPaintProperty("osm", "raster-opacity", isNight ? 0.66 : 0.92);
+      map.setPaintProperty("osm", "raster-saturation", isNight ? -0.78 : -0.12);
+      map.setPaintProperty("osm", "raster-brightness-min", isNight ? 0.06 : 0.2);
+      map.setPaintProperty("osm", "raster-brightness-max", isNight ? 0.46 : 0.98);
+      map.setPaintProperty("moverse-route-base", "line-color", isNight ? "#183f37" : "#ffffff");
+      map.setPaintProperty("moverse-route-line", "line-color", isNight ? "#55caa6" : "#258d65");
+      map.setPaintProperty("moverse-progress-line", "line-color", isNight ? "#d7fff3" : "#163e34");
+      map.setPaintProperty("moverse-spots-label", "text-color", isNight ? "#f4fbf8" : "#18322d");
+      map.setPaintProperty("moverse-spots-label", "text-halo-color", isNight ? "#10252b" : "#ffffff");
+      map.setPaintProperty("moverse-events-label", "text-color", isNight ? "#f4fbf8" : "#1b2f2a");
+      map.setPaintProperty("moverse-events-label", "text-halo-color", isNight ? "#10252b" : "#ffffff");
+      map.setPaintProperty("moverse-user-core", "circle-color", isNight ? "#d5fff0" : "#173f36");
+      map.setPaintProperty("moverse-user-label", "text-color", isNight ? "#173f36" : "#ffffff");
     } catch {
-      // The CSS world remains visible while a style swap is settling.
+      // A style can briefly be unavailable while the map is initializing.
     }
-  }, [isNight, mapBooted]);
-
-  useEffect(() => {
-    markerRefs.current.forEach((marker) => marker.remove());
-    markerRefs.current = [];
-
-    const map = mapRef.current;
-    const maplibre = mapModuleRef.current;
-    if (!map || !maplibre || !mapBooted) return;
-
-    const newMarkers: MapLibreMarker[] = [];
-
-    spots.forEach((spot) => {
-      const element = createSpotElement(
-        spot,
-        actualSelectedSpotId === spot.id,
-        () => selectSpot(spot),
-      );
-      const marker = new maplibre.Marker({ element, anchor: "bottom" })
-        .setLngLat([spot.longitude, spot.latitude])
-        .addTo(map);
-      newMarkers.push(marker);
-    });
-
-    events.forEach((event, index) => {
-      const element = createEventElement(
-        event,
-        actualSelectedEventId === event.id,
-        () => selectEvent(event, index),
-      );
-      const marker = new maplibre.Marker({
-        element,
-        anchor: "bottom",
-        offset: [0, -24],
-      })
-        .setLngLat(eventCoordinate(event, index))
-        .addTo(map);
-      newMarkers.push(marker);
-    });
-
-    markerRefs.current = newMarkers;
-    return () => {
-      newMarkers.forEach((marker) => marker.remove());
-      if (markerRefs.current === newMarkers) markerRefs.current = [];
-    };
-  }, [
-    actualSelectedEventId,
-    actualSelectedSpotId,
-    eventCoordinate,
-    events,
-    mapBooted,
-    selectEvent,
-    selectSpot,
-    spots,
-  ]);
+  }, [isNight, mapBooted, mapState]);
 
   useEffect(() => {
     const map = mapRef.current;
-    const maplibre = mapModuleRef.current;
-    if (!map || !maplibre || !mapBooted) return;
+    if (!map || mapState !== "ready") return;
 
-    if (!userMarkerRef.current) {
-      userMarkerRef.current = new maplibre.Marker({
-        element: createUserElement(user, progress > 0 && progress < 1),
-        anchor: "bottom",
-      })
-        .setLngLat(currentUserPosition)
-        .addTo(map);
-    } else {
-      userMarkerRef.current.setLngLat(currentUserPosition);
-      const element = userMarkerRef.current.getElement();
-      element.classList.toggle("is-moving", progress > 0 && progress < 1);
-    }
-
+    const spotSource = map.getSource("moverse-spots") as GeoJSONSource | undefined;
+    const eventSource = map.getSource("moverse-events") as GeoJSONSource | undefined;
+    const userSource = map.getSource("moverse-user") as GeoJSONSource | undefined;
     const progressSource = map.getSource("moverse-progress") as GeoJSONSource | undefined;
+    spotSource?.setData(spotCollection);
+    eventSource?.setData(eventCollection);
+    userSource?.setData(userCollection);
     progressSource?.setData(makeLineFeature(progressCoordinates(route, progress)));
   }, [
-    currentUserPosition,
-    mapBooted,
+    eventCollection,
+    mapState,
     progress,
     route,
-    user,
+    spotCollection,
+    userCollection,
   ]);
 
   const zoomIn = () => mapRef.current?.zoomIn({ duration: 320 });
@@ -986,7 +1001,7 @@ export function WorldMap({
         ];
         setLocatedPosition(next);
         setLocationMessage("현재 위치로 이동했어요.");
-        mapRef.current?.easeTo({ center: next, zoom: 16.2, pitch: 58, duration: 700 });
+        mapRef.current?.easeTo({ center: next, zoom: 16.2, pitch: 46, duration: 700 });
       },
       () => {
         setLocationMessage("위치가 꺼져 있어 여의도 데모 월드를 보여드려요.");
@@ -1015,76 +1030,61 @@ export function WorldMap({
       data-map-state={mapState}
       data-moving={progress > 0 && progress < 1 ? "true" : "false"}
       style={progressStyle}
-      aria-label="Moverse 3D 활동 지도"
+      aria-label="Moverse 활동 지도"
     >
-      <div className="mw-world-map__sky" aria-hidden="true" />
-
-      <div className="mw-fallback-world" aria-hidden={mapState === "ready"}>
-        <div className="mw-fallback-world__horizon" />
-        <div className="mw-fallback-world__plane">
-          <span className="mw-fallback-world__river" />
-          <span className="mw-fallback-world__road mw-fallback-world__road--one" />
-          <span className="mw-fallback-world__road mw-fallback-world__road--two" />
-          <span className="mw-fallback-world__road mw-fallback-world__road--three" />
-          <span className="mw-fallback-world__road mw-fallback-world__road--four" />
-          <span className="mw-fallback-world__route" />
-          {Array.from({ length: 18 }, (_, index) => (
-            <span
-              className={`mw-fallback-building mw-fallback-building--${(index % 6) + 1}`}
-              key={index}
-              style={
-                {
-                  "--mw-building-index": index,
-                } as CSSProperties
-              }
-            />
-          ))}
-        </div>
-
-        {mapState !== "ready" ? (
-          <div className="mw-fallback-world__markers">
-            {spots.map((spot) => (
-              <FallbackSpotMarker
-                key={spot.id}
-                spot={spot}
-                center={stableCenter}
-                selected={actualSelectedSpotId === spot.id}
-                disabled={false}
-                onSelect={() => selectSpot(spot)}
-              />
-            ))}
-            {events.map((event, index) => (
-              <FallbackEventMarker
-                key={event.id}
-                event={event}
-                coordinate={eventCoordinate(event, index)}
-                center={stableCenter}
-                selected={actualSelectedEventId === event.id}
-                disabled={false}
-                onSelect={() => selectEvent(event, index)}
-              />
-            ))}
-            <div
-              className={`mw-fallback-player${progress > 0 && progress < 1 ? " is-moving" : ""}`}
-              style={positionForFallback(
-                currentUserPosition[0],
-                currentUserPosition[1],
-                stableCenter,
-              )}
-              aria-hidden="true"
-            >
-              <span className="mw-player__direction" />
-              <span className="mw-player__aura" />
-              <span className="mw-player__shadow" />
-              <span className="mw-player__avatar">{user.initials ?? "N"}</span>
-            </div>
-          </div>
-        ) : null}
-      </div>
-
       <div ref={mapContainerRef} className="mw-world-map__canvas" />
       <div className="mw-world-map__vignette" aria-hidden="true" />
-      <div className="mw-world-map__scan" aria-hidden="true" />
+
+      {mapState === "fallback" ? (
+        <div className="mw-map-fallback-panel" role="status">
+          <WifiOff size={20} aria-hidden="true" />
+          <strong>지도를 불러오지 못했어요</strong>
+          <span>아래 활동 목록에서 계속 둘러볼 수 있어요.</span>
+        </div>
+      ) : null}
+
+      <div className="mw-map-activity-list" aria-label="주변 활동 목록">
+        <strong>주변 활동</strong>
+        <div className="mw-map-activity-list__items">
+          {spots.map((spot) => (
+            <button
+              type="button"
+              key={spot.id}
+              className={actualSelectedSpotId === spot.id ? "is-selected" : undefined}
+              onClick={() => selectSpot(spot)}
+            >
+              <span className="mw-map-activity-list__dot is-spot" aria-hidden="true" />
+              <span>
+                <b>{spot.name}</b>
+                <small>
+                  활동 스팟 · {spot.distanceLabel ?? `${spot.levelNumber ?? 1}단계`}
+                </small>
+              </span>
+            </button>
+          ))}
+          {events.map((event, index) => (
+            <button
+              type="button"
+              key={event.id}
+              className={actualSelectedEventId === event.id ? "is-selected" : undefined}
+              onClick={() => selectEvent(event, index)}
+            >
+              <span
+                className="mw-map-activity-list__dot"
+                style={{ backgroundColor: SPORT_META[event.sport].color }}
+                aria-hidden="true"
+              />
+              <span>
+                <b>{event.title}</b>
+                <small>
+                  {SPORT_META[event.sport].label}
+                  {event.startLabel ? ` · ${event.startLabel}` : ""}
+                </small>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {showHud ? (
         <>
@@ -1129,7 +1129,7 @@ export function WorldMap({
 
           <div className="mw-map-safety-chip">
             <span className="mw-map-safety-chip__dot" aria-hidden="true" />
-            {isNight ? "대면 활동 종료 · 내일 예약 가능" : `Run Spot ${operatingEndsAt} 종료`}
+            {isNight ? "대면 활동 종료 · 내일 예약 가능" : `활동 스팟 ${operatingEndsAt} 종료`}
           </div>
 
           {progress > 0 ? (
@@ -1138,8 +1138,8 @@ export function WorldMap({
                 <Navigation size={16} />
               </span>
               <span className="mw-move-progress__copy">
-                <strong>{movingLabel ?? "Spot으로 이동 중"}</strong>
-                <small>{Math.max(0.1, progress * 1.4).toFixed(1)}km · Energy +{Math.round(progress * 18)}</small>
+                <strong>{movingLabel ?? "스팟으로 이동 중"}</strong>
+                <small>{Math.max(0.1, progress * 1.4).toFixed(1)}km · 에너지 +{Math.round(progress * 18)}</small>
               </span>
               <span className="mw-move-progress__track" aria-hidden="true">
                 <span />
@@ -1153,17 +1153,17 @@ export function WorldMap({
       {mapState === "fallback" ? (
         <div className="mw-map-fallback-chip" role="status">
           <WifiOff size={13} aria-hidden="true" />
-          3D 데모 월드
+          활동 목록으로 보기
         </div>
       ) : null}
 
       <p className="mw-sr-only" aria-live="polite">
         {locationMessage ||
           (mapState === "loading"
-            ? "3D 활동 지도를 불러오는 중입니다."
+            ? "활동 지도를 불러오는 중입니다."
             : mapState === "fallback"
-              ? "네트워크 없이 사용할 수 있는 3D 데모 지도를 표시합니다."
-              : "3D 활동 지도를 사용할 수 있습니다.")}
+              ? "지도를 불러오지 못해 주변 활동 목록을 표시합니다."
+              : "활동 지도를 사용할 수 있습니다.")}
       </p>
     </section>
   );

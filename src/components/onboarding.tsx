@@ -7,13 +7,15 @@ import {
   Camera,
   Check,
   ChevronLeft,
+  Clock3,
+  Compass,
   LockKeyhole,
   MapPinned,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import { useState } from "react";
 import { SPORT_META, type SportType } from "@/types/moverse";
+import { SportIcon } from "./sport-icon";
 
 type OnboardingProps = {
   onComplete: (sports: SportType[]) => void;
@@ -43,8 +45,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
   return (
     <main className="onboarding-shell">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
       <header className="onboarding-header">
         {step > 0 ? (
           <button className="round-icon-btn" onClick={() => setStep((value) => value - 1)} aria-label="이전 단계">
@@ -67,26 +67,32 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             exit={{ opacity: 0, x: -30 }}
             className="onboarding-stage intro-stage"
           >
-            <div className="mini-world" aria-hidden="true">
-              <div className="world-ring ring-a" />
-              <div className="world-ring ring-b" />
-              <div className="world-land land-a" />
-              <div className="world-land land-b" />
-              <div className="world-spot world-spot-a"><span>🏀</span></div>
-              <div className="world-spot world-spot-b"><span>🏃</span></div>
-              <div className="world-spot world-spot-c"><span>🏸</span></div>
-              <div className="world-player">✨</div>
+            <div className="eyebrow"><MapPinned size={14} /> 학생을 위한 대면 활동 플랫폼</div>
+            <h1>가까운 곳에서<br /><em>함께 움직여요</em></h1>
+            <p>지도에서 주변 활동을 찾고, 인증된 학생들과 안전하게 만나 운동을 시작하세요.</p>
+            <div className="intro-preview" aria-label="오늘 가까운 활동 예시">
+              <div className="intro-preview-head">
+                <span><MapPinned size={16} /> 여의도 한강공원</span>
+                <small>오늘</small>
+              </div>
+              <div className="intro-activity-row">
+                <span className="intro-sport running"><SportIcon sport="running" size={19} /></span>
+                <p><strong>선셋 20분 런앤워크</strong><small>620m · 처음이어도 참여 가능</small></p>
+                <b><Clock3 size={13} /> 19:40</b>
+              </div>
+              <div className="intro-activity-row">
+                <span className="intro-sport basketball"><SportIcon sport="basketball" size={19} /></span>
+                <p><strong>초보자 농구 3대3</strong><small>1.2km · 2자리 남음</small></p>
+                <b>내일</b>
+              </div>
             </div>
-            <div className="eyebrow"><Sparkles size={14} /> 현실에서 시작되는 새로운 연결</div>
-            <h1>세상을 움직이는<br /><em>우리만의 Universe</em></h1>
-            <p>주변 활동을 발견하고, 인증된 학생들과 만나 함께 움직여요. 우리가 움직일수록 현실의 Moverse가 성장합니다.</p>
-            <div className="onboarding-pills">
-              <span><MapPinned size={15} /> 3D 활동 지도</span>
-              <span><ShieldCheck size={15} /> 학생 인증</span>
-              <span><BadgeCheck size={15} /> 함께 성장</span>
+            <div className="onboarding-facts">
+              <span><ShieldCheck size={16} /> 학생 인증</span>
+              <span><MapPinned size={16} /> 위치 단계 공개</span>
+              <span><BadgeCheck size={16} /> 대면 활동 기록</span>
             </div>
             <button className="primary-cta" onClick={() => setStep(1)}>
-              Moverse 입장하기 <ArrowRight size={20} />
+              시작하기 <ArrowRight size={20} />
             </button>
           </motion.section>
         )}
@@ -99,23 +105,22 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             exit={{ opacity: 0, x: -30 }}
             className="onboarding-stage"
           >
-            <div className="eyebrow"><LockKeyhole size={14} /> 학생만 들어올 수 있는 활동 세계</div>
+            <div className="eyebrow"><LockKeyhole size={14} /> 인증된 학생끼리 만나요</div>
             <h2>먼저, 학생인 것을<br />안전하게 확인할게요</h2>
             <p className="stage-copy">인증 전에는 정확한 위치와 개인정보가 누구에게도 공개되지 않아요. 인증 이미지는 확인 후 바로 삭제됩니다.</p>
 
             <div className={`student-card-demo ${verified ? "verified" : ""}`}>
-              <div className="card-shine" />
-              <div className="student-card-top"><span>MOVER ID</span><BadgeCheck size={21} /></div>
+              <div className="student-card-top"><span>학생 인증 카드</span><BadgeCheck size={21} /></div>
               <div className="student-card-body">
                 <div className="student-avatar">N</div>
-                <div><strong>NOVA</strong><small>Student explorer · Teen verified</small></div>
+                <div><strong>NOVA</strong><small>학생 사용자 · 개인정보 비공개</small></div>
               </div>
-              <div className="student-card-code">•••• 0726 <span>{verified ? "VERIFIED" : "READY"}</span></div>
+              <div className="student-card-code">인증번호 •••• 0726 <span>{verified ? "인증 완료" : "확인 전"}</span></div>
             </div>
 
             <div className="privacy-points">
               <div><span><ShieldCheck /></span><p><strong>최소 정보만</strong><small>실명·학교·학급은 다른 사용자에게 비공개</small></p></div>
-              <div><span><MapPinned /></span><p><strong>활동이 먼저</strong><small>사람 위치가 아닌 주변 Event만 탐색</small></p></div>
+              <div><span><MapPinned /></span><p><strong>활동이 먼저</strong><small>만나기 전에는 주변 활동만 지도에 표시</small></p></div>
             </div>
 
             {!verified ? (
@@ -138,7 +143,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             animate={{ opacity: 1, x: 0 }}
             className="onboarding-stage"
           >
-            <div className="eyebrow"><Sparkles size={14} /> 첫 번째 추천을 준비할게요</div>
+            <div className="eyebrow"><Compass size={14} /> 관심 종목을 알려주세요</div>
             <h2>어떤 움직임이<br />끌리나요?</h2>
             <p className="stage-copy">잘하지 않아도 괜찮아요. 지금 관심 있는 활동을 골라주세요.</p>
             <div className="sport-select-grid">
@@ -152,17 +157,17 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                     onClick={() => toggleSport(key)}
                     aria-pressed={isSelected}
                   >
-                    <span>{meta.emoji}</span><strong>{meta.label}</strong>{isSelected && <i><Check size={13} /></i>}
+                    <span><SportIcon sport={key} size={21} /></span><strong>{meta.label}</strong>{isSelected && <i><Check size={13} /></i>}
                   </button>
                 );
               })}
             </div>
             <div className="recommendation-preview">
-              <div className="ai-spark">✦</div>
-              <p><strong>NOVA를 위한 첫 움직임</strong><small>선택한 종목과 가까운 Spot을 지도에서 추천할게요.</small></p>
+              <div className="recommendation-icon"><MapPinned size={18} /></div>
+              <p><strong>내 주변 활동부터 보여드릴게요</strong><small>선택한 종목과 거리를 기준으로 정렬합니다.</small></p>
             </div>
             <button className="primary-cta" onClick={() => onComplete(selected)} disabled={!selected.length}>
-              내 Moverse 열기 <ArrowRight size={20} />
+              내 지도 열기 <ArrowRight size={20} />
             </button>
           </motion.section>
         )}

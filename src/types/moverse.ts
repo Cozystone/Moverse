@@ -77,14 +77,14 @@ export type ActivityRecord = {
 
 export const SPORT_META: Record<
   SportType,
-  { label: string; emoji: string; color: string; soft: string }
+  { label: string; color: string; soft: string }
 > = {
-  running: { label: "러닝", emoji: "🏃", color: "#a3e635", soft: "#ecfccb" },
-  walking: { label: "걷기", emoji: "🚶", color: "#2dd4bf", soft: "#ccfbf1" },
-  basketball: { label: "농구", emoji: "🏀", color: "#fb923c", soft: "#ffedd5" },
-  football: { label: "축구", emoji: "⚽", color: "#22c55e", soft: "#dcfce7" },
-  badminton: { label: "배드민턴", emoji: "🏸", color: "#38bdf8", soft: "#e0f2fe" },
-  plogging: { label: "플로깅", emoji: "🌱", color: "#10b981", soft: "#d1fae5" },
+  running: { label: "러닝", color: "#a3e635", soft: "#ecfccb" },
+  walking: { label: "걷기", color: "#2dd4bf", soft: "#ccfbf1" },
+  basketball: { label: "농구", color: "#fb923c", soft: "#ffedd5" },
+  football: { label: "축구", color: "#22c55e", soft: "#dcfce7" },
+  badminton: { label: "배드민턴", color: "#38bdf8", soft: "#e0f2fe" },
+  plogging: { label: "플로깅", color: "#10b981", soft: "#d1fae5" },
 };
 
 export const MODE_LABEL: Record<EventMode, string> = {
