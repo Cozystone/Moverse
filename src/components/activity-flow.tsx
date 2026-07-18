@@ -339,7 +339,7 @@ function ModalFrame({
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy ?? titleId}
-        className="relative flex h-[100dvh] w-full max-w-[430px] flex-col overflow-hidden bg-[#0d1714] text-white shadow-[0_18px_55px_rgba(0,0,0,.48)] sm:h-[min(850px,94dvh)] sm:rounded-3xl sm:border sm:border-white/10"
+        className="relative flex h-[100dvh] w-full max-w-[430px] flex-col overflow-hidden bg-[#0d1714] font-semibold text-white shadow-[0_18px_55px_rgba(0,0,0,.48)] sm:h-[min(850px,94dvh)] sm:rounded-3xl sm:border sm:border-white/10"
         initial={{ y: 36, opacity: 0, scale: 0.98 }}
         animate={{ y: 0, opacity: 1, scale: 1 }}
         exit={{ y: 30, opacity: 0, scale: 0.98 }}
@@ -390,7 +390,7 @@ function Pill({
     <span
       className={clsx(
         "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold tracking-[-0.01em]",
-        tone === "neutral" && "border-white/15 bg-[#18231f] text-white/75",
+        tone === "neutral" && "border-white/15 bg-[#18231f] text-white/85",
         tone === "green" &&
           "border-[#b9ff57]/25 bg-[#b9ff57]/10 text-[#d8ff9f]",
         tone === "orange" &&
@@ -479,7 +479,7 @@ function SafetyNotice({ compact = false }: { compact?: boolean }) {
   return (
     <div
       className={clsx(
-        "rounded-xl border border-sky-300/20 bg-[#102329] text-sky-100/85",
+        "rounded-xl border border-[#3ed8c1]/35 bg-[#102321] text-white/90",
         compact ? "p-3" : "p-4",
       )}
     >
@@ -488,7 +488,7 @@ function SafetyNotice({ compact = false }: { compact?: boolean }) {
         <div>
           <p className="text-xs font-bold text-sky-100">만남은 인증하고, 위치는 숨겨요</p>
           {!compact && (
-            <p className="mt-1 text-[11px] leading-4 text-sky-100/60">
+            <p className="mt-1 text-[11px] font-semibold leading-4 text-white/80">
               학생 인증 사용자만 참여하며, 정확한 실시간 위치와 이동 경로는 서로에게
               공개되지 않습니다.
             </p>
@@ -503,12 +503,12 @@ function NightPolicy({ compact = false }: { compact?: boolean }) {
   return (
     <div
       className={clsx(
-        "flex items-center gap-2 rounded-xl border border-indigo-300/20 bg-[#171d2b] text-indigo-100/85",
+        "flex items-center gap-2 rounded-xl border border-[#8291ad]/35 bg-[#171c21] text-white/90",
         compact ? "px-3 py-2.5" : "px-4 py-3",
       )}
     >
       <Moon className="size-4 shrink-0 text-indigo-200" aria-hidden="true" />
-      <p className="text-[11px] leading-4">
+      <p className="text-[11px] font-semibold leading-4">
         <strong className="text-indigo-100">대면 활동은 21:00에 자동 종료</strong>
         {!compact && " · 이후에는 다음 일정 예약과 메시지만 이용할 수 있어요."}
       </p>
@@ -523,7 +523,7 @@ function AvatarStack({ count = 3 }: { count?: number }) {
       {participants.slice(0, Math.min(count, participants.length)).map((color, index) => (
         <span
           key={`${color}-${index}`}
-          className="grid size-8 place-items-center rounded-full border-2 border-[#10211b] text-white/75"
+          className="grid size-8 place-items-center rounded-full border-2 border-[#10211b] text-white/85"
           style={{ backgroundColor: color }}
           aria-hidden="true"
         >
@@ -531,7 +531,7 @@ function AvatarStack({ count = 3 }: { count?: number }) {
         </span>
       ))}
       {count > participants.length && (
-        <span className="grid size-8 place-items-center rounded-full border-2 border-[#10211b] bg-white/10 text-[10px] font-bold text-white/70">
+        <span className="grid size-8 place-items-center rounded-full border-2 border-[#10211b] bg-white/10 text-[10px] font-bold text-white/85">
           +{count - participants.length}
         </span>
       )}
@@ -548,7 +548,7 @@ function SessionHeader({ step, onBack }: { step: FlowStep; onBack?: () => void }
             type="button"
             onClick={onBack}
             aria-label="이전 단계"
-            className="grid size-10 place-items-center rounded-full text-white/75 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b9ff57]"
+            className="grid size-10 place-items-center rounded-full text-white/85 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b9ff57]"
           >
             <ArrowLeft className="size-5" aria-hidden="true" />
           </button>
@@ -811,7 +811,7 @@ function ActivityFlowSession({
               <h3 id={`${titleId}-exit`} className="mt-4 text-lg font-extrabold">
                 활동에서 안전 이탈할까요?
               </h3>
-              <p className="mt-2 text-sm leading-6 text-white/70">
+              <p className="mt-2 text-sm font-semibold leading-6 text-white/85">
                 현재 기록은 저장되지 않습니다. 불편하거나 위험한 상황이라면 즉시 이탈한 뒤
                 신고할 수 있어요.
               </p>
@@ -861,7 +861,7 @@ function EventDetailStep({
           </div>
           <div className="mt-6 flex items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-bold text-white/75">{sport.label} · {MODE_META[event.mode].description}</p>
+              <p className="text-xs font-bold text-white/85">{sport.label} · {MODE_META[event.mode].description}</p>
               <h3 className="mt-2 max-w-[270px] text-[25px] font-black leading-[1.16] tracking-[-0.035em] text-white">
                 {event.title}
               </h3>
@@ -877,12 +877,12 @@ function EventDetailStep({
         <div className="grid grid-cols-2 gap-2.5">
           <div className="rounded-xl border border-white/10 bg-[#141f1b] p-3.5">
             <Clock3 className="size-4 text-[#b9ff57]" aria-hidden="true" />
-            <p className="mt-2 text-[11px] text-white/65">일정 · {event.durationMinutes}분</p>
+            <p className="mt-2 text-[11px] font-semibold text-white/80">일정 · {event.durationMinutes}분</p>
             <p className="mt-0.5 text-xs font-bold text-white/85">{formatEventDate(event.startsAt)}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-[#141f1b] p-3.5">
             <Users className="size-4 text-[#b9ff57]" aria-hidden="true" />
-            <p className="mt-2 text-[11px] text-white/65">참가 인원</p>
+            <p className="mt-2 text-[11px] font-semibold text-white/80">참가 인원</p>
             <p className="mt-0.5 text-xs font-bold text-white/85">
               {event.participantCount}/{event.capacity}명 · {event.capacity - event.participantCount}자리
             </p>
@@ -893,22 +893,22 @@ function EventDetailStep({
           <div className="flex items-start gap-3">
             <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-white/[.07] text-[#b9ff57]"><MapPin className="size-5" /></div>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold text-white/60">공개된 안전 집결지</p>
+              <p className="text-[11px] font-bold text-white/75">공개된 안전 집결지</p>
               <p className="mt-0.5 truncate text-sm font-extrabold text-white/90">{event.spotName}</p>
-              <p className="mt-1 text-[11px] text-white/65">{event.distanceText ?? "현재 위치에서 도보 8분"}</p>
+              <p className="mt-1 text-[11px] font-semibold text-white/80">{event.distanceText ?? "현재 위치에서 도보 8분"}</p>
             </div>
-            <Navigation className="mt-1 size-4 text-white/60" aria-hidden="true" />
+            <Navigation className="mt-1 size-4 text-white/80" aria-hidden="true" />
           </div>
           <div className="mt-4 h-px bg-white/8" />
           <div className="mt-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <div className="grid size-9 place-items-center rounded-full bg-[#29493d] text-white/80"><UserRound className="size-4" /></div>
+              <div className="grid size-9 place-items-center rounded-full bg-[#29493d] text-white/90"><UserRound className="size-4" /></div>
               <div>
                 <p className="flex items-center gap-1 text-xs font-bold">
                   {event.hostName}
                   <BadgeCheck className="size-3.5 fill-[#b9ff57] text-[#17311e]" aria-label="학생 인증 완료" />
                 </p>
-                <p className="text-[10px] text-white/60">주최자 레벨 {event.hostLevel ?? 4} · 정상 완료 12회</p>
+                <p className="text-[11px] font-semibold text-white/75">주최자 레벨 {event.hostLevel ?? 4} · 정상 완료 12회</p>
               </div>
             </div>
             <AvatarStack count={Math.max(1, event.participantCount)} />
@@ -923,7 +923,7 @@ function EventDetailStep({
           <p className="mt-2 text-sm font-bold text-white/90">
             {sport.goalLabel} {sport.goal}{sport.unit} 달성
           </p>
-          <p className="mt-1 text-[11px] leading-4 text-white/65">
+          <p className="mt-1 text-[11px] font-semibold leading-4 text-white/80">
             승패보다 실제 만남과 함께한 시간을 보상해요. 목표를 채우면 활동 지점도 성장합니다.
           </p>
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -934,7 +934,7 @@ function EventDetailStep({
         </div>
 
         {event.description && (
-          <p className="mt-4 px-1 text-xs leading-5 text-white/70">{event.description}</p>
+          <p className="mt-4 px-1 text-xs font-semibold leading-5 text-white/80">{event.description}</p>
         )}
         <div className="mt-3 space-y-2.5">
           <SafetyNotice compact />
@@ -944,7 +944,7 @@ function EventDetailStep({
 
       <div className="shrink-0 border-t border-white/10 bg-[#0d1714] px-5 pb-[max(env(safe-area-inset-bottom),18px)] pt-4">
         <div className="mb-3 flex items-center justify-between text-[11px]">
-          <span className="text-white/65">정상 체크인 시 보증금 전액 반환</span>
+          <span className="font-semibold text-white/80">정상 체크인 시 보증금 전액 반환</span>
           <span className="flex items-center gap-1 font-bold text-[#d7ff9f]"><Coins className="size-3.5" /> +24 예상</span>
         </div>
         <PrimaryButton onClick={onReserve}>
@@ -980,29 +980,29 @@ function ReservedStep({
         <div className="mt-5 text-center">
           <p className="text-xs font-bold text-[#b9ff57]">예약 완료</p>
           <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]">자리를 확보했어요</h3>
-          <p className="mt-2 text-sm leading-5 text-white/65">현장에 도착하기 전까지 다른 참가자의<br />정확한 정보와 위치는 공개되지 않아요.</p>
+          <p className="mt-2 text-sm font-semibold leading-5 text-white/80">현장에 도착하기 전까지 다른 참가자의<br />정확한 정보와 위치는 공개되지 않아요.</p>
         </div>
 
         <div className="mt-7 overflow-hidden rounded-xl border border-white/10 bg-[#141f1b]">
           <div className="border-b border-dashed border-white/10 p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-bold text-white/65">활동 참가권</p>
+                <p className="text-[11px] font-bold text-white/80">활동 참가권</p>
                 <p className="mt-2 text-base font-extrabold">{event.title}</p>
-                <p className="mt-1 text-xs text-white/65">{formatEventDate(event.startsAt)}</p>
+                <p className="mt-1 text-xs font-semibold text-white/80">{formatEventDate(event.startsAt)}</p>
               </div>
-              <span className="grid size-10 place-items-center rounded-lg bg-white/[.07] text-white/80" aria-label={SPORT_META[event.sport].label}>
+              <span className="grid size-10 place-items-center rounded-lg bg-white/[.07] text-white/90" aria-label={SPORT_META[event.sport].label}>
                 <SportIcon sport={event.sport} className="size-5" />
               </span>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-px bg-white/8">
             <div className="bg-[#10211b] p-4">
-              <p className="text-[10px] text-white/60">집결 장소</p>
+              <p className="text-[11px] font-semibold text-white/75">집결 장소</p>
               <p className="mt-1 truncate text-xs font-bold">{event.spotName}</p>
             </div>
             <div className="bg-[#10211b] p-4">
-              <p className="text-[10px] text-white/60">예약 번호</p>
+              <p className="text-[11px] font-semibold text-white/75">예약 번호</p>
               <p className="mt-1 font-mono text-xs font-bold">MV-{event.id.replace(/^.*-/, "").slice(-4).toUpperCase()}</p>
             </div>
           </div>
@@ -1018,7 +1018,7 @@ function ReservedStep({
               <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#b9ff57]/10 text-[11px] font-black text-[#b9ff57]">{number}</span>
               <div>
                 <p className="text-xs font-bold text-white/85">{title}</p>
-                <p className="mt-0.5 text-[11px] leading-4 text-white/60">{description}</p>
+                <p className="mt-0.5 text-[11px] font-semibold leading-4 text-white/75">{description}</p>
               </div>
             </div>
           ))}
@@ -1058,7 +1058,7 @@ function CheckInStep({
         <div className="text-center">
           <p className="text-xs font-bold text-[#b9ff57]">현장 체크인</p>
           <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]">활동 지점에 도착했나요?</h3>
-          <p className="mt-2 text-sm text-white/65">반경 안에 있다는 사실만 확인합니다.</p>
+          <p className="mt-2 text-sm font-semibold text-white/80">반경 안에 있다는 사실만 확인합니다.</p>
         </div>
 
         <div className="relative mx-auto mt-7 grid aspect-square w-[min(68vw,260px)] place-items-center overflow-hidden rounded-full border border-[#b9ff57]/20 bg-[#111d18]">
@@ -1087,12 +1087,12 @@ function CheckInStep({
             <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-white/[.07]"><Radio className="size-4 text-[#b9ff57]" /></div>
             <div>
               <p className="text-xs font-extrabold">{event.spotName}</p>
-              <p className="mt-1 text-[11px] leading-4 text-white/65">허용 반경 80m · 개인 좌표와 이동 경로는 저장하지 않음</p>
+              <p className="mt-1 text-[11px] font-semibold leading-4 text-white/80">허용 반경 80m · 개인 좌표와 이동 경로는 저장하지 않음</p>
             </div>
           </div>
           {state === "verified" && <p className="mt-3 rounded-xl bg-[#b9ff57]/10 p-3 text-[11px] font-bold text-[#d9ffa4]">GPS 반경 확인 완료 · 정확한 좌표는 즉시 폐기됩니다.</p>}
           {state === "demo" && <p className="mt-3 rounded-xl bg-sky-300/10 p-3 text-[11px] font-bold text-sky-200">데모 현장 인증 완료 · 발표용 안전 경로로 진행합니다.</p>}
-          {state === "failed" && <p className="mt-3 rounded-xl bg-amber-300/10 p-3 text-[11px] leading-4 text-amber-100">위치를 확인하지 못했어요. 권한을 다시 허용하거나 아래 데모 인증으로 흐름을 확인하세요.</p>}
+          {state === "failed" && <p className="mt-3 rounded-xl bg-amber-300/10 p-3 text-[11px] font-bold leading-4 text-amber-100">위치를 확인하지 못했어요. 권한을 다시 허용하거나 아래 데모 인증으로 흐름을 확인하세요.</p>}
         </div>
         <SafetyNotice compact />
       </div>
@@ -1145,7 +1145,7 @@ function QrStep({
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-2 text-center">
         <p className="text-xs font-bold text-[#b9ff57]">상호 태그</p>
         <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]">서로의 QR을 태그하세요</h3>
-        <p className="mt-2 text-sm leading-5 text-white/65">양쪽 인증이 모두 끝나야 활동이 시작돼요.</p>
+        <p className="mt-2 text-sm font-semibold leading-5 text-white/80">양쪽 인증이 모두 끝나야 활동이 시작돼요.</p>
 
         <div className="relative mx-auto mt-6 w-fit">
           <div className="relative rounded-2xl border border-white/15 bg-white p-5 shadow-[0_12px_28px_rgba(0,0,0,.28)]">
@@ -1161,7 +1161,7 @@ function QrStep({
             <div className="mt-3 flex items-center justify-center gap-2 text-[#15241d]">
               <TimerReset className="size-4" />
               <span className="font-mono text-xs font-black">00:{String(seconds).padStart(2, "0")}</span>
-              <span className="text-[10px] font-semibold text-black/40">후 자동 변경</span>
+              <span className="text-[11px] font-bold text-black/65">후 자동 변경</span>
             </div>
           </div>
         </div>
@@ -1169,7 +1169,7 @@ function QrStep({
         <button
           type="button"
           onClick={onRefresh}
-          className="mx-auto mt-4 flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-bold text-white/65 transition hover:bg-white/5 hover:text-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b9ff57]"
+          className="mx-auto mt-4 flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-bold text-white/80 transition hover:bg-white/5 hover:text-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b9ff57]"
         >
           <RefreshCw className="size-3.5" /> 지금 새 QR 만들기
         </button>
@@ -1180,17 +1180,17 @@ function QrStep({
             <p className="mt-2 text-[11px] font-bold">나 · 인증 준비</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-[#141f1b] p-3">
-            <ScanLine className="size-4 text-white/65" />
-            <p className="mt-2 text-[11px] font-bold text-white/70">상대 · 스캔 대기</p>
+            <ScanLine className="size-4 text-white/80" />
+            <p className="mt-2 text-[11px] font-bold text-white/80">상대 · 스캔 대기</p>
           </div>
         </div>
-        <p className="mt-4 flex items-center justify-center gap-1.5 text-[10px] text-white/60"><LockKeyhole className="size-3" /> QR에는 실명·학교·정확한 위치가 들어가지 않아요.</p>
+        <p className="mt-4 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-white/75"><LockKeyhole className="size-3" /> QR에는 실명·학교·정확한 위치가 들어가지 않아요.</p>
       </div>
       <div className="shrink-0 border-t border-white/8 px-5 pb-[max(env(safe-area-inset-bottom),18px)] pt-4">
         <PrimaryButton onClick={onTagged}>
           <QrCode className="size-4.5" /> 데모 상호 태그 완료
         </PrimaryButton>
-        <p className="mt-2 text-center text-[10px] text-white/55">카메라를 사용할 수 없는 발표 환경용 데모 기능입니다.</p>
+        <p className="mt-2 text-center text-[11px] font-semibold text-white/75">카메라를 사용할 수 없는 발표 환경용 데모 기능입니다.</p>
       </div>
     </>
   );
@@ -1223,7 +1223,7 @@ function MatchedStep({
         <div className="text-center">
           <p className="text-xs font-bold text-[#b9ff57]">태그 확인 완료</p>
           <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]">모두 현장에서 만났어요</h3>
-          <p className="mt-2 text-sm text-white/65">상호 동의와 학생 인증을 확인했습니다.</p>
+          <p className="mt-2 text-sm font-semibold text-white/80">상호 동의와 학생 인증을 확인했습니다.</p>
         </div>
 
         <div className="mt-7 space-y-2.5">
@@ -1235,10 +1235,10 @@ function MatchedStep({
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.12 }}
             >
-              <span className="grid size-11 place-items-center rounded-lg bg-[#29493d] text-white/80"><UserRound className="size-5" /></span>
+              <span className="grid size-11 place-items-center rounded-lg bg-[#29493d] text-white/90"><UserRound className="size-5" /></span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-extrabold">{member.name}</p>
-                <p className="text-[10px] text-white/60">{member.role}</p>
+                <p className="text-[11px] font-semibold text-white/75">{member.role}</p>
               </div>
               <span className="grid size-7 place-items-center rounded-full bg-[#b9ff57]/12 text-[#b9ff57]"><Check className="size-3.5" /></span>
             </motion.div>
@@ -1248,12 +1248,12 @@ function MatchedStep({
         <div className="mt-4 rounded-xl border border-amber-300/20 bg-[#282318] p-4">
           <div className="flex items-start gap-2.5">
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-amber-200" />
-            <p className="text-[11px] leading-4 text-amber-50/70">함께 출발하고 함께 종료해요. 불편한 상황에는 언제든 <strong className="text-amber-100">안전 이탈</strong>을 눌러 활동을 종료할 수 있습니다.</p>
+            <p className="text-[11px] font-semibold leading-4 text-amber-50/85">함께 출발하고 함께 종료해요. 불편한 상황에는 언제든 <strong className="text-amber-100">안전 이탈</strong>을 눌러 활동을 종료할 수 있습니다.</p>
           </div>
         </div>
       </div>
       <div className="shrink-0 border-t border-white/8 px-5 pb-[max(env(safe-area-inset-bottom),18px)] pt-4">
-        <div className="mb-3 flex items-center justify-between text-[11px] text-white/65"><span>{event.durationMinutes}분 활동</span><span>21:00 이전 자동 종료</span></div>
+        <div className="mb-3 flex items-center justify-between text-[11px] font-semibold text-white/80"><span>{event.durationMinutes}분 활동</span><span>21:00 이전 자동 종료</span></div>
         <PrimaryButton onClick={onStart}>
           <Play className="size-4.5 fill-current" /> 함께 활동 시작
         </PrimaryButton>
@@ -1297,20 +1297,20 @@ function ActiveStep({
         <div className="relative flex items-center justify-between pr-12">
           <div className="flex items-center gap-2 rounded-md border border-white/15 bg-black/15 px-2.5 py-1.5">
             <span className={clsx("size-2 rounded-full", paused ? "bg-amber-300" : "animate-pulse bg-white")} />
-            <span className="text-[10px] font-extrabold">{paused ? "일시정지" : "활동 진행 중"}</span>
+            <span className="text-[11px] font-extrabold">{paused ? "일시정지" : "활동 진행 중"}</span>
           </div>
           <button
             type="button"
             onClick={onExit}
-            className="rounded-lg border border-white/15 bg-black/15 px-3 py-2 text-[10px] font-bold text-white/85 transition hover:bg-black/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            className="rounded-lg border border-white/15 bg-black/15 px-3 py-2 text-[11px] font-bold text-white/85 transition hover:bg-black/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
             안전 이탈
           </button>
         </div>
         <div className="relative mt-7 text-center">
-          <p className="text-[11px] font-bold text-white/75">활동 시간</p>
+          <p className="text-[11px] font-bold text-white/85">활동 시간</p>
           <p className="mt-1 font-mono text-[52px] font-black leading-none tracking-[-0.06em] tabular-nums">{formatTimer(elapsedSeconds)}</p>
-          <p className="mt-3 text-xs font-bold text-white/70">{event.title}</p>
+          <p className="mt-3 text-xs font-bold text-white/85">{event.title}</p>
         </div>
       </div>
 
@@ -1318,11 +1318,11 @@ function ActiveStep({
         <div className="rounded-xl border border-white/10 bg-[#141f1b] p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="flex items-center gap-1.5 text-[11px] font-bold text-white/65"><Goal className="size-3.5 text-[#b9ff57]" /> 공동 목표</p>
+              <p className="flex items-center gap-1.5 text-[11px] font-bold text-white/80"><Goal className="size-3.5 text-[#b9ff57]" /> 공동 목표</p>
               <p className="mt-1.5 text-base font-extrabold">{sport.goalLabel}</p>
             </div>
             <p className="text-right font-mono text-xl font-black" style={{ color: sport.accent }}>
-              {roundProgress(progress, event.sport)}<span className="ml-0.5 text-xs text-white/60">/{sport.goal}{sport.unit}</span>
+              {roundProgress(progress, event.sport)}<span className="ml-0.5 text-xs font-bold text-white/75">/{sport.goal}{sport.unit}</span>
             </p>
           </div>
           <div
@@ -1339,23 +1339,23 @@ function ActiveStep({
               animate={{ width: `${percent}%` }}
             />
           </div>
-          <div className="mt-3 flex items-center justify-between text-[10px] text-white/60"><span>{participantTotal}명이 함께 기여 중</span><span>{percent}% 달성</span></div>
+          <div className="mt-3 flex items-center justify-between text-[11px] font-semibold text-white/75"><span>{participantTotal}명이 함께 기여 중</span><span>{percent}% 달성</span></div>
         </div>
 
         <div className="mt-3 grid grid-cols-3 gap-2">
           {["NOVA", "LUMI", "DASH"].map((member, index) => (
             <div key={member} className="rounded-xl border border-white/10 bg-[#141f1b] p-3 text-center">
-              <div className="relative mx-auto w-fit"><span className="grid size-10 place-items-center rounded-lg bg-[#29493d] text-white/80"><UserRound className="size-4.5" /></span><span className="absolute -bottom-1 -right-1 size-2.5 rounded-full border-2 border-[#10201b] bg-[#b9ff57]" /></div>
-              <p className="mt-2 truncate text-[10px] font-bold text-white/70">{member}</p>
-              <p className="mt-0.5 text-[9px] text-white/55">+{Math.max(1, Math.round(percent * (0.25 + index * 0.04)))}%</p>
+              <div className="relative mx-auto w-fit"><span className="grid size-10 place-items-center rounded-lg bg-[#29493d] text-white/90"><UserRound className="size-4.5" /></span><span className="absolute -bottom-1 -right-1 size-2.5 rounded-full border-2 border-[#10201b] bg-[#b9ff57]" /></div>
+              <p className="mt-2 truncate text-[11px] font-bold text-white/80">{member}</p>
+              <p className="mt-0.5 text-[10px] font-bold text-white/75">+{Math.max(1, Math.round(percent * (0.25 + index * 0.04)))}%</p>
             </div>
           ))}
         </div>
 
         <div className="mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-[#141f1b] p-3">
           <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#b9ff57]/10"><Zap className="size-4 text-[#b9ff57]" /></div>
-          <div className="min-w-0 flex-1"><p className="text-[11px] font-bold">움직임이 지점 에너지로 쌓이는 중</p><p className="mt-0.5 truncate text-[10px] text-white/60">{event.spotName} · 다음 레벨까지 18%</p></div>
-          <ChevronRight className="size-4 text-white/55" />
+          <div className="min-w-0 flex-1"><p className="text-[11px] font-bold">움직임이 지점 에너지로 쌓이는 중</p><p className="mt-0.5 truncate text-[11px] font-semibold text-white/75">{event.spotName} · 다음 레벨까지 18%</p></div>
+          <ChevronRight className="size-4 text-white/75" />
         </div>
         <NightPolicy compact />
       </div>
@@ -1409,24 +1409,24 @@ function ResultStep({
           </motion.div>
           <p className="mt-5 text-xs font-bold text-[#b9ff57]">활동 완료</p>
           <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]">함께 목표를 완성했어요!</h3>
-          <p className="mt-2 text-sm text-white/65">실제로 만나 움직인 시간이 새로운 관계와 장소를 키웠어요.</p>
+          <p className="mt-2 text-sm font-semibold text-white/80">실제로 만나 움직인 시간이 새로운 관계와 장소를 키웠어요.</p>
         </div>
 
         <div className="mt-6 grid grid-cols-3 gap-2">
-          <div className="rounded-xl border border-white/10 bg-[#141f1b] p-3 text-center"><Zap className="mx-auto size-4 text-[#b9ff57]" /><p className="mt-2 font-mono text-lg font-black">+{result.energyEarned}</p><p className="text-[9px] text-white/60">에너지</p></div>
-          <div className="rounded-xl border border-white/10 bg-[#141f1b] p-3 text-center"><Coins className="mx-auto size-4 text-amber-300" /><p className="mt-2 font-mono text-lg font-black">+{result.coinEarned}</p><p className="text-[9px] text-white/60">무브 코인</p></div>
-          <div className="rounded-xl border border-white/10 bg-[#141f1b] p-3 text-center"><Sparkles className="mx-auto size-4 text-violet-300" /><p className="mt-2 font-mono text-lg font-black">+{result.experienceEarned}</p><p className="text-[9px] text-white/60">경험치</p></div>
+          <div className="rounded-xl border border-white/10 bg-[#141f1b] p-3 text-center"><Zap className="mx-auto size-4 text-[#b9ff57]" /><p className="mt-2 font-mono text-lg font-black">+{result.energyEarned}</p><p className="text-[10px] font-bold text-white/75">에너지</p></div>
+          <div className="rounded-xl border border-white/10 bg-[#141f1b] p-3 text-center"><Coins className="mx-auto size-4 text-amber-300" /><p className="mt-2 font-mono text-lg font-black">+{result.coinEarned}</p><p className="text-[10px] font-bold text-white/75">무브 코인</p></div>
+          <div className="rounded-xl border border-white/10 bg-[#141f1b] p-3 text-center"><Sparkles className="mx-auto size-4 text-violet-300" /><p className="mt-2 font-mono text-lg font-black">+{result.experienceEarned}</p><p className="text-[10px] font-bold text-white/75">경험치</p></div>
         </div>
 
         <div className="mt-3 rounded-xl border border-white/10 bg-[#141f1b] p-4">
-          <div className="flex items-center gap-3"><div className="grid size-11 place-items-center rounded-lg bg-[#b9ff57]/10"><Route className="size-5 text-[#b9ff57]" /></div><div className="min-w-0 flex-1"><p className="text-xs font-extrabold">{event.spotName}이 성장했어요</p><p className="mt-1 text-[10px] text-white/60">지점 에너지 +{result.spotEnergyEarned} · 활성 단계까지 12%</p></div><Leaf className="size-5 text-[#b9ff57]" /></div>
+          <div className="flex items-center gap-3"><div className="grid size-11 place-items-center rounded-lg bg-[#b9ff57]/10"><Route className="size-5 text-[#b9ff57]" /></div><div className="min-w-0 flex-1"><p className="text-xs font-extrabold">{event.spotName}이 성장했어요</p><p className="mt-1 text-[11px] font-semibold text-white/75">지점 에너지 +{result.spotEnergyEarned} · 활성 단계까지 12%</p></div><Leaf className="size-5 text-[#b9ff57]" /></div>
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/8"><motion.div className="h-full rounded-full bg-[#b9ff57]" initial={{ width: "58%" }} animate={{ width: "68%" }} transition={{ delay: 0.5, duration: 0.8 }} /></div>
         </div>
 
         <div className="mt-3 rounded-xl border border-sky-300/20 bg-[#102329] p-4">
           <div className="flex items-center gap-3">
-            <div className="grid size-12 place-items-center rounded-lg bg-[#1a3432] text-white/80"><UserRound className="size-5" /></div>
-            <div className="min-w-0 flex-1"><p className="text-xs font-extrabold">LUMI와 다시 움직일까요?</p><p className="mt-1 text-[10px] text-white/60">함께 활동한 사용자끼리만 상호 연결할 수 있어요.</p></div>
+            <div className="grid size-12 place-items-center rounded-lg bg-[#1a3432] text-white/90"><UserRound className="size-5" /></div>
+            <div className="min-w-0 flex-1"><p className="text-xs font-extrabold">LUMI와 다시 움직일까요?</p><p className="mt-1 text-[11px] font-semibold text-white/75">함께 활동한 사용자끼리만 상호 연결할 수 있어요.</p></div>
           </div>
           <button
             type="button"
@@ -1604,7 +1604,7 @@ function CreateEventForm({
       <header className="shrink-0 border-b border-white/10 px-5 pb-4 pt-[max(env(safe-area-inset-top),24px)] pr-16">
         <p className="text-[11px] font-bold text-[#b9ff57]">활동 만들기</p>
         <h3 id={`${titleId}-visible`} className="mt-1 text-2xl font-black tracking-[-0.04em]">새 활동 열기</h3>
-        <p className="mt-1 text-xs text-white/65">모은 코인을 사용해 함께할 활동을 열 수 있어요.</p>
+        <p className="mt-1 text-xs font-semibold text-white/80">모은 코인을 사용해 함께할 활동을 열 수 있어요.</p>
       </header>
 
       <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
@@ -1625,8 +1625,8 @@ function CreateEventForm({
                     sport === value ? "border-[#b9ff57]/40 bg-[#17251d]" : "border-white/10 bg-[#141f1b] hover:bg-[#18241f]",
                   )}
                 >
-                  <span className="grid size-9 place-items-center rounded-lg bg-white/[.07] text-white/80"><SportIcon sport={value} className="size-4.5" /></span>
-                  <span><span className="block text-xs font-extrabold">{meta.label}</span><span className="mt-0.5 block text-[9px] text-white/60">{meta.goalLabel}</span></span>
+                  <span className="grid size-9 place-items-center rounded-lg bg-white/[.07] text-white/90"><SportIcon sport={value} className="size-4.5" /></span>
+                  <span><span className="block text-xs font-extrabold">{meta.label}</span><span className="mt-0.5 block text-[10px] font-semibold text-white/75">{meta.goalLabel}</span></span>
                   {sport === value && <CheckCircle2 className="ml-auto size-4 text-[#b9ff57]" />}
                 </button>
                 );
@@ -1644,8 +1644,8 @@ function CreateEventForm({
                   onClick={() => setMode(value)}
                   aria-pressed={mode === value}
                   className={clsx(
-                    "min-h-11 rounded-lg px-1 text-[10px] font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b9ff57]",
-                    mode === value ? "bg-[#b9ff57] text-[#0b1b13]" : "text-white/65 hover:text-white/90",
+                    "min-h-11 rounded-lg px-1 text-[11px] font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b9ff57]",
+                    mode === value ? "bg-[#b9ff57] text-[#0b1b13]" : "text-white/80 hover:text-white/95",
                   )}
                   title={meta.description}
                 >
@@ -1653,21 +1653,21 @@ function CreateEventForm({
                 </button>
               ))}
             </div>
-            <p className="mt-2 px-1 text-[10px] text-white/60">{MODE_META[mode].description}</p>
+            <p className="mt-2 px-1 text-[11px] font-semibold text-white/75">{MODE_META[mode].description}</p>
           </fieldset>
 
           <div className="mt-6 space-y-4">
             <label className="block">
               <span className="text-xs font-extrabold text-white/80">활동 지점</span>
               <span className="relative mt-2 block">
-                <MapPin className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-white/60" />
+                <MapPin className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-white/75" />
                 <input
                   value={spotName}
                   list={spotListId}
                   onChange={(inputEvent) => { setSpotName(inputEvent.target.value); setError(""); }}
                   placeholder="예: 중앙공원 러닝 게이트"
                   required
-                  className="min-h-13 w-full rounded-xl border border-white/15 bg-[#141f1b] py-3 pl-10 pr-4 text-sm font-semibold text-white outline-none placeholder:text-white/45 focus:border-[#b9ff57]/50 focus:ring-2 focus:ring-[#b9ff57]/15"
+                  className="min-h-13 w-full rounded-xl border border-white/15 bg-[#141f1b] py-3 pl-10 pr-4 text-sm font-bold text-white outline-none placeholder:font-semibold placeholder:text-white/60 focus:border-[#b9ff57]/50 focus:ring-2 focus:ring-[#b9ff57]/15"
                 />
                 <datalist id={spotListId}>
                   {spots.map((spot) => (
@@ -1677,20 +1677,20 @@ function CreateEventForm({
                   ))}
                 </datalist>
               </span>
-              <span className="mt-1.5 block text-[10px] text-white/55">공개되고 검증된 활동 지점에서만 개최할 수 있어요.</span>
+              <span className="mt-1.5 block text-[11px] font-semibold text-white/75">공개되고 검증된 활동 지점에서만 개최할 수 있어요.</span>
             </label>
 
             <div className="grid grid-cols-2 gap-2.5">
               <label className="block">
                 <span className="text-xs font-extrabold text-white/80">시작 시간</span>
                 <span className="relative mt-2 block">
-                  <CalendarDays className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/60" />
+                  <CalendarDays className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/75" />
                   <input
                     type="datetime-local"
                     value={startsAt}
                     onChange={(inputEvent) => { setStartsAt(inputEvent.target.value); setError(""); }}
                     required
-                    className="min-h-13 w-full rounded-xl border border-white/15 bg-[#141f1b] py-3 pl-9 pr-2 text-[11px] font-semibold text-white [color-scheme:dark] outline-none focus:border-[#b9ff57]/50 focus:ring-2 focus:ring-[#b9ff57]/15"
+                    className="min-h-13 w-full rounded-xl border border-white/15 bg-[#141f1b] py-3 pl-9 pr-2 text-[11px] font-bold text-white [color-scheme:dark] outline-none focus:border-[#b9ff57]/50 focus:ring-2 focus:ring-[#b9ff57]/15"
                   />
                 </span>
               </label>
@@ -1699,7 +1699,7 @@ function CreateEventForm({
                 <select
                   value={durationMinutes}
                   onChange={(selectEvent) => { setDurationMinutes(Number(selectEvent.target.value)); setError(""); }}
-                  className="mt-2 min-h-13 w-full rounded-xl border border-white/15 bg-[#141f1b] px-3 text-xs font-semibold text-white outline-none focus:border-[#b9ff57]/50 focus:ring-2 focus:ring-[#b9ff57]/15"
+                  className="mt-2 min-h-13 w-full rounded-xl border border-white/15 bg-[#141f1b] px-3 text-xs font-bold text-white outline-none focus:border-[#b9ff57]/50 focus:ring-2 focus:ring-[#b9ff57]/15"
                 >
                   {[20, 30, 40, 60, 90].map((minutes) => <option key={minutes} value={minutes}>{minutes}분</option>)}
                 </select>
@@ -1709,15 +1709,15 @@ function CreateEventForm({
 
           <div className="mt-5 grid grid-cols-2 gap-2.5">
             <div className="rounded-xl border border-white/10 bg-[#141f1b] p-3.5">
-              <p className="text-[10px] font-bold text-white/65">참가 인원</p>
+              <p className="text-[11px] font-bold text-white/80">참가 인원</p>
               <div className="mt-3 flex items-center justify-between">
                 <button type="button" onClick={() => setCapacity((value) => Math.max(2, value - 1))} aria-label="참가 인원 줄이기" className="grid size-8 place-items-center rounded-xl bg-white/8 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b9ff57]"><Minus className="size-3.5" /></button>
-                <span className="font-mono text-lg font-black">{capacity}<small className="ml-0.5 text-[10px] text-white/60">명</small></span>
+                <span className="font-mono text-lg font-black">{capacity}<small className="ml-0.5 text-[10px] font-bold text-white/75">명</small></span>
                 <button type="button" onClick={() => setCapacity((value) => Math.min(16, value + 1))} aria-label="참가 인원 늘리기" className="grid size-8 place-items-center rounded-xl bg-white/8 transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b9ff57]"><Plus className="size-3.5" /></button>
               </div>
             </div>
             <label className="rounded-xl border border-white/10 bg-[#141f1b] p-3.5">
-              <span className="text-[10px] font-bold text-white/65">개최 비용</span>
+              <span className="text-[11px] font-bold text-white/80">개최 비용</span>
               <span className="relative mt-2.5 flex items-center">
                 <Coins className="absolute left-2.5 size-3.5 text-amber-300" />
                 <input
@@ -1731,7 +1731,7 @@ function CreateEventForm({
                   className="min-h-9 w-full rounded-xl border border-white/8 bg-white/[.045] pl-8 pr-2 font-mono text-sm font-black outline-none focus:border-[#b9ff57]/50"
                 />
               </span>
-              <span className="mt-1.5 block text-[9px] text-white/55">보유 {usableCoin} 코인</span>
+              <span className="mt-1.5 block text-[10px] font-bold text-white/75">보유 {usableCoin} 코인</span>
             </label>
           </div>
 
@@ -1743,7 +1743,7 @@ function CreateEventForm({
               className="peer sr-only"
             />
             <span className="grid size-6 place-items-center rounded-lg border border-white/15 bg-white/5 text-transparent transition peer-checked:border-[#b9ff57] peer-checked:bg-[#b9ff57] peer-checked:text-[#0b1b13] peer-focus-visible:ring-2 peer-focus-visible:ring-[#b9ff57]"><Check className="size-4" /></span>
-            <span className="min-w-0 flex-1"><span className="block text-xs font-extrabold">초보자 환영</span><span className="mt-0.5 block text-[10px] text-white/60">실력보다 참여와 협력을 우선해요.</span></span>
+            <span className="min-w-0 flex-1"><span className="block text-xs font-extrabold">초보자 환영</span><span className="mt-0.5 block text-[11px] font-semibold text-white/75">실력보다 참여와 협력을 우선해요.</span></span>
             <Leaf className="size-5 text-[#b9ff57]" />
           </label>
 
@@ -1757,7 +1757,7 @@ function CreateEventForm({
         </div>
 
         <div className="shrink-0 border-t border-white/10 bg-[#0d1714] px-5 pb-[max(env(safe-area-inset-bottom),18px)] pt-4">
-          <div className="mb-3 flex items-center justify-between text-[11px]"><span className="text-white/65">{SPORT_META[sport].label} · {MODE_META[mode].label} · {capacity}명</span><span className={clsx("font-bold", hostCost > usableCoin ? "text-red-300" : "text-amber-200")}>-{hostCost} 코인</span></div>
+          <div className="mb-3 flex items-center justify-between text-[11px] font-bold"><span className="text-white/80">{SPORT_META[sport].label} · {MODE_META[mode].label} · {capacity}명</span><span className={clsx("font-bold", hostCost > usableCoin ? "text-red-300" : "text-amber-200")}>-{hostCost} 코인</span></div>
           <PrimaryButton type="submit" disabled={hostCost > usableCoin || !startsAt || !spotName.trim()}>
             <Radio className="size-4.5" /> 활동 열기
           </PrimaryButton>

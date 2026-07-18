@@ -203,20 +203,20 @@ const SPORT_META: Record<
   WorldMapSport,
   { label: string; symbol: string; color: string }
 > = {
-  running: { label: "러닝", symbol: "런", color: "#42b883" },
-  walking: { label: "걷기", symbol: "걷", color: "#2ca58d" },
-  basketball: { label: "농구", symbol: "농", color: "#e77b3b" },
-  football: { label: "축구", symbol: "축", color: "#278a55" },
-  badminton: { label: "배드민턴", symbol: "배", color: "#388fc4" },
-  plogging: { label: "플로깅", symbol: "줍", color: "#318a78" },
+  running: { label: "러닝", symbol: "런", color: "#008f5a" },
+  walking: { label: "걷기", symbol: "걷", color: "#007f73" },
+  basketball: { label: "농구", symbol: "농", color: "#d85e10" },
+  football: { label: "축구", symbol: "축", color: "#087c3b" },
+  badminton: { label: "배드민턴", symbol: "배", color: "#0879b5" },
+  plogging: { label: "플로깅", symbol: "줍", color: "#18725e" },
 };
 
 const SPOT_COLOR: Record<WorldMapSpotLevel, string> = {
-  seed: "#79a944",
-  trail: "#4b9d73",
-  active: "#238863",
-  pulse: "#247f86",
-  landmark: "#176f55",
+  seed: "#6f8f1f",
+  trail: "#23865c",
+  active: "#087a53",
+  pulse: "#007987",
+  landmark: "#005a42",
 };
 
 type SpotFeatureProperties = {
@@ -340,7 +340,7 @@ function createKeylessStyle(isNight: boolean): StyleSpecification {
         id: "moverse-background",
         type: "background",
         paint: {
-          "background-color": isNight ? "#14242d" : "#d9e3dc",
+          "background-color": isNight ? "#101f26" : "#cbd3ce",
           "background-opacity": 1,
         },
       },
@@ -349,11 +349,11 @@ function createKeylessStyle(isNight: boolean): StyleSpecification {
         type: "raster",
         source: "osm",
         paint: {
-          "raster-opacity": isNight ? 0.66 : 0.92,
-          "raster-saturation": isNight ? -0.78 : -0.12,
-          "raster-contrast": isNight ? 0.12 : 0.02,
-          "raster-brightness-min": isNight ? 0.06 : 0.2,
-          "raster-brightness-max": isNight ? 0.46 : 0.98,
+          "raster-opacity": isNight ? 0.88 : 1,
+          "raster-saturation": isNight ? -0.38 : 0.12,
+          "raster-contrast": isNight ? 0.28 : 0.14,
+          "raster-brightness-min": isNight ? 0.02 : 0.06,
+          "raster-brightness-max": isNight ? 0.58 : 1,
         },
       },
     ],
@@ -452,9 +452,9 @@ function addMapLayers(
     source: "moverse-route",
     layout: { "line-cap": "round", "line-join": "round" },
     paint: {
-      "line-color": isNight ? "#183f37" : "#ffffff",
-      "line-width": 7,
-      "line-opacity": isNight ? 0.62 : 0.82,
+      "line-color": isNight ? "#102d28" : "#ffffff",
+      "line-width": 8,
+      "line-opacity": isNight ? 0.82 : 0.96,
     },
   });
   map.addLayer({
@@ -463,9 +463,9 @@ function addMapLayers(
     source: "moverse-route",
     layout: { "line-cap": "round", "line-join": "round" },
     paint: {
-      "line-color": isNight ? "#55caa6" : "#258d65",
-      "line-width": 3,
-      "line-opacity": 0.92,
+      "line-color": isNight ? "#5dd2aa" : "#006b49",
+      "line-width": 3.5,
+      "line-opacity": 1,
       "line-dasharray": [1, 1.5],
     },
   });
@@ -480,9 +480,9 @@ function addMapLayers(
     source: "moverse-progress",
     layout: { "line-cap": "round", "line-join": "round" },
     paint: {
-      "line-color": isNight ? "#d7fff3" : "#163e34",
-      "line-width": 4.5,
-      "line-opacity": 0.94,
+      "line-color": isNight ? "#f4fff9" : "#091f1a",
+      "line-width": 5,
+      "line-opacity": 1,
     },
   });
 
@@ -497,8 +497,8 @@ function addMapLayers(
     paint: {
       "circle-radius": ["case", ["==", ["get", "selected"], 1], 24, 18],
       "circle-color": ["get", "color"],
-      "circle-opacity": isNight ? 0.28 : 0.2,
-      "circle-blur": 0.35,
+      "circle-opacity": isNight ? 0.32 : 0.24,
+      "circle-blur": 0.28,
       "circle-pitch-alignment": "map",
     },
   });
@@ -507,7 +507,7 @@ function addMapLayers(
     type: "circle",
     source: "moverse-spots",
     paint: {
-      "circle-radius": ["case", ["==", ["get", "selected"], 1], 12, 9],
+      "circle-radius": ["case", ["==", ["get", "selected"], 1], 13, 10],
       "circle-color": ["get", "color"],
       "circle-stroke-color": "#ffffff",
       "circle-stroke-width": ["case", ["==", ["get", "selected"], 1], 3, 2],
@@ -521,8 +521,8 @@ function addMapLayers(
     source: "moverse-spots",
     layout: {
       "text-field": ["get", "symbol"],
-      "text-font": ["Noto Sans Regular"],
-      "text-size": 10,
+      "text-font": ["Noto Sans Bold"],
+      "text-size": 11,
       "text-allow-overlap": true,
       "text-ignore-placement": true,
     },
@@ -534,8 +534,8 @@ function addMapLayers(
     source: "moverse-spots",
     layout: {
       "text-field": ["get", "label"],
-      "text-font": ["Noto Sans Regular"],
-      "text-size": 10,
+      "text-font": ["Noto Sans Bold"],
+      "text-size": 11,
       "text-anchor": "top",
       "text-offset": [0, 1.35],
       "text-max-width": 12,
@@ -543,9 +543,10 @@ function addMapLayers(
       "text-padding": 6,
     },
     paint: {
-      "text-color": isNight ? "#f4fbf8" : "#18322d",
-      "text-halo-color": isNight ? "#10252b" : "#ffffff",
-      "text-halo-width": 2,
+      "text-color": isNight ? "#ffffff" : "#071b16",
+      "text-halo-color": isNight ? "#07161a" : "#ffffff",
+      "text-halo-width": 2.5,
+      "text-halo-blur": 0.2,
     },
   });
   map.addLayer({
@@ -576,10 +577,10 @@ function addMapLayers(
       "circle-opacity": [
         "case",
         ["==", ["get", "live"], 1],
-        isNight ? 0.34 : 0.26,
-        isNight ? 0.24 : 0.18,
+        isNight ? 0.38 : 0.3,
+        isNight ? 0.28 : 0.22,
       ],
-      "circle-blur": 0.4,
+      "circle-blur": 0.3,
       "circle-pitch-alignment": "map",
     },
   });
@@ -588,7 +589,7 @@ function addMapLayers(
     type: "circle",
     source: "moverse-events",
     paint: {
-      "circle-radius": ["case", ["==", ["get", "selected"], 1], 13, 10],
+      "circle-radius": ["case", ["==", ["get", "selected"], 1], 14, 11],
       "circle-color": ["get", "color"],
       "circle-stroke-color": "#ffffff",
       "circle-stroke-width": ["case", ["==", ["get", "selected"], 1], 3, 2],
@@ -602,8 +603,8 @@ function addMapLayers(
     source: "moverse-events",
     layout: {
       "text-field": ["get", "symbol"],
-      "text-font": ["Noto Sans Regular"],
-      "text-size": 10,
+      "text-font": ["Noto Sans Bold"],
+      "text-size": 11,
       "text-allow-overlap": true,
       "text-ignore-placement": true,
     },
@@ -615,8 +616,8 @@ function addMapLayers(
     source: "moverse-events",
     layout: {
       "text-field": ["get", "label"],
-      "text-font": ["Noto Sans Regular"],
-      "text-size": 10,
+      "text-font": ["Noto Sans Bold"],
+      "text-size": 11,
       "text-anchor": "top",
       "text-offset": [0, 1.55],
       "text-max-width": 14,
@@ -624,9 +625,10 @@ function addMapLayers(
       "text-padding": 8,
     },
     paint: {
-      "text-color": isNight ? "#f4fbf8" : "#1b2f2a",
-      "text-halo-color": isNight ? "#10252b" : "#ffffff",
-      "text-halo-width": 2,
+      "text-color": isNight ? "#ffffff" : "#071b16",
+      "text-halo-color": isNight ? "#07161a" : "#ffffff",
+      "text-halo-width": 2.5,
+      "text-halo-blur": 0.2,
     },
   });
   map.addLayer({
@@ -669,8 +671,8 @@ function addMapLayers(
     source: "moverse-user",
     layout: {
       "text-field": ["get", "initials"],
-      "text-font": ["Noto Sans Regular"],
-      "text-size": 10,
+      "text-font": ["Noto Sans Bold"],
+      "text-size": 11,
       "text-allow-overlap": true,
       "text-ignore-placement": true,
     },
@@ -936,19 +938,27 @@ export function WorldMap({
       map.setPaintProperty(
         "moverse-background",
         "background-color",
-        isNight ? "#14242d" : "#d9e3dc",
+        isNight ? "#101f26" : "#cbd3ce",
       );
-      map.setPaintProperty("osm", "raster-opacity", isNight ? 0.66 : 0.92);
-      map.setPaintProperty("osm", "raster-saturation", isNight ? -0.78 : -0.12);
-      map.setPaintProperty("osm", "raster-brightness-min", isNight ? 0.06 : 0.2);
-      map.setPaintProperty("osm", "raster-brightness-max", isNight ? 0.46 : 0.98);
-      map.setPaintProperty("moverse-route-base", "line-color", isNight ? "#183f37" : "#ffffff");
-      map.setPaintProperty("moverse-route-line", "line-color", isNight ? "#55caa6" : "#258d65");
-      map.setPaintProperty("moverse-progress-line", "line-color", isNight ? "#d7fff3" : "#163e34");
-      map.setPaintProperty("moverse-spots-label", "text-color", isNight ? "#f4fbf8" : "#18322d");
-      map.setPaintProperty("moverse-spots-label", "text-halo-color", isNight ? "#10252b" : "#ffffff");
-      map.setPaintProperty("moverse-events-label", "text-color", isNight ? "#f4fbf8" : "#1b2f2a");
-      map.setPaintProperty("moverse-events-label", "text-halo-color", isNight ? "#10252b" : "#ffffff");
+      map.setPaintProperty("osm", "raster-opacity", isNight ? 0.88 : 1);
+      map.setPaintProperty("osm", "raster-saturation", isNight ? -0.38 : 0.12);
+      map.setPaintProperty("osm", "raster-contrast", isNight ? 0.28 : 0.14);
+      map.setPaintProperty("osm", "raster-brightness-min", isNight ? 0.02 : 0.06);
+      map.setPaintProperty("osm", "raster-brightness-max", isNight ? 0.58 : 1);
+      map.setPaintProperty("moverse-route-base", "line-color", isNight ? "#102d28" : "#ffffff");
+      map.setPaintProperty("moverse-route-line", "line-color", isNight ? "#5dd2aa" : "#006b49");
+      map.setPaintProperty("moverse-progress-line", "line-color", isNight ? "#f4fff9" : "#091f1a");
+      map.setPaintProperty("moverse-spots-halo", "circle-opacity", isNight ? 0.32 : 0.24);
+      map.setPaintProperty("moverse-spots-label", "text-color", isNight ? "#ffffff" : "#071b16");
+      map.setPaintProperty("moverse-spots-label", "text-halo-color", isNight ? "#07161a" : "#ffffff");
+      map.setPaintProperty("moverse-events-halo", "circle-opacity", [
+        "case",
+        ["==", ["get", "live"], 1],
+        isNight ? 0.38 : 0.3,
+        isNight ? 0.28 : 0.22,
+      ]);
+      map.setPaintProperty("moverse-events-label", "text-color", isNight ? "#ffffff" : "#071b16");
+      map.setPaintProperty("moverse-events-label", "text-halo-color", isNight ? "#07161a" : "#ffffff");
       map.setPaintProperty("moverse-user-core", "circle-color", isNight ? "#d5fff0" : "#173f36");
       map.setPaintProperty("moverse-user-label", "text-color", isNight ? "#173f36" : "#ffffff");
     } catch {

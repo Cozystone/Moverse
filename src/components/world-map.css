@@ -1,11 +1,11 @@
 .mw-world-map {
-  --mw-accent: #238863;
-  --mw-accent-soft: #e1f0e9;
-  --mw-ink: #172d28;
-  --mw-muted: #5d706b;
+  --mw-accent: #067a53;
+  --mw-accent-soft: #e9edeb;
+  --mw-ink: #0a201b;
+  --mw-muted: #43534f;
   --mw-surface: #ffffff;
-  --mw-border: #d7dfdc;
-  --mw-shadow: 0 6px 18px rgba(19, 49, 42, 0.12);
+  --mw-border: #b8c3bf;
+  --mw-shadow: 0 5px 14px rgba(10, 32, 27, 0.16);
   position: relative;
   isolation: isolate;
   width: 100%;
@@ -13,19 +13,19 @@
   min-height: 520px;
   overflow: hidden;
   color: var(--mw-ink);
-  background: #d9e3dc;
+  background: #cbd3ce;
   contain: layout paint;
 }
 
 .mw-world-map.is-night {
-  --mw-accent: #5bc6a2;
-  --mw-accent-soft: #1d3e38;
-  --mw-ink: #edf7f3;
-  --mw-muted: #a6bbb4;
-  --mw-surface: #152a30;
-  --mw-border: #355057;
-  --mw-shadow: 0 7px 20px rgba(0, 10, 14, 0.28);
-  background: #14242d;
+  --mw-accent: #65d7ad;
+  --mw-accent-soft: #22383a;
+  --mw-ink: #ffffff;
+  --mw-muted: #b8c7c2;
+  --mw-surface: #0d2228;
+  --mw-border: #496168;
+  --mw-shadow: 0 6px 18px rgba(0, 8, 11, 0.36);
+  background: #101f26;
 }
 
 .mw-world-map button {
@@ -130,7 +130,7 @@
   color: var(--mw-ink);
   background: var(--mw-surface);
   font-size: 11px;
-  font-weight: 760;
+  font-weight: 820;
   box-shadow: var(--mw-shadow);
 }
 
@@ -169,7 +169,7 @@
   color: var(--mw-ink);
   background: var(--mw-surface);
   font-size: 10px;
-  font-weight: 720;
+  font-weight: 780;
   box-shadow: var(--mw-shadow);
 }
 
@@ -328,12 +328,14 @@
 }
 
 .mw-map-fallback-panel strong {
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 850;
 }
 
 .mw-map-fallback-panel span {
   color: var(--mw-muted);
-  font-size: 11px;
+  font-size: 11.5px;
+  font-weight: 620;
   line-height: 1.45;
 }
 
@@ -395,7 +397,8 @@
 
 .mw-map-activity-list > strong {
   padding: 2px 4px 8px;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 850;
 }
 
 .mw-map-activity-list__items {
@@ -425,6 +428,10 @@
   background: var(--mw-accent-soft);
 }
 
+.mw-map-activity-list button.is-selected {
+  box-shadow: inset 3px 0 0 var(--mw-accent);
+}
+
 .mw-map-activity-list button > span:last-child {
   display: grid;
   min-width: 0;
@@ -439,17 +446,20 @@
 }
 
 .mw-map-activity-list b {
-  font-size: 11px;
+  color: var(--mw-ink);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .mw-map-activity-list small {
   color: var(--mw-muted);
-  font-size: 9px;
+  font-size: 10px;
+  font-weight: 650;
 }
 
 .mw-map-activity-list__dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: #4b9d73;
 }
