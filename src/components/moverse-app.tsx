@@ -9,9 +9,14 @@ import {
   Coins,
   Compass,
   ExternalLink,
+  Footprints,
   MapPinned,
   MoonStar,
+  Navigation,
+  Pause,
+  Play,
   Plus,
+  RotateCcw,
   ShieldCheck,
   Users,
   X,
@@ -27,13 +32,17 @@ import {
   Sun,
   UserCircle,
 } from "@phosphor-icons/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   EVENT_ELIGIBLE_SPOTS,
   MOVE_SPOT_BY_ID,
   MOVE_SPOTS,
 } from "@/data/move-world";
-import { SAMSEONG_HILLSTATE_CENTER } from "@/data/samseong-local-data";
+import {
+  SAMSEONG_DEMO_START,
+  SAMSEONG_HILLSTATE_CENTER,
+} from "@/data/samseong-local-data";
+import { useDemoNavigation } from "@/hooks/use-demo-navigation";
 import { useGpsTracker } from "@/hooks/use-gps-tracker";
 import { useStreetMatchedRoute } from "@/hooks/use-street-matched-route";
 import { useMoverseStore } from "@/store/use-moverse-store";
@@ -45,7 +54,11 @@ import { MyVerse } from "./my-verse";
 import { CreateEventModal, EventFlowModal, type CreateEventInput } from "./activity-flow";
 import { SocialPanel } from "./social-panel";
 import { SportIcon } from "./sport-icon";
-import type { WorldMapPerson, WorldMapViewport } from "./world-map";
+import type {
+  WorldMapCoordinate,
+  WorldMapPerson,
+  WorldMapViewport,
+} from "./world-map";
 
 const WorldMap = dynamic(() => import("./world-map").then((mod) => mod.WorldMap), {
   ssr: false,
@@ -55,6 +68,10 @@ const WorldMap = dynamic(() => import("./world-map").then((mod) => mod.WorldMap)
 type MainTab = "map" | "activity" | "move" | "social" | "verse";
 
 const SEOUL_WIDE_DISTANCE_KM = 12;
+const DEMO_START_COORDINATE: WorldMapCoordinate = [
+  SAMSEONG_DEMO_START.longitude,
+  SAMSEONG_DEMO_START.latitude,
+];
 
 const DEMO_MAP_PEOPLE: readonly WorldMapPerson[] = [
   {
@@ -99,6 +116,7 @@ const DEMO_MAP_PEOPLE: readonly WorldMapPerson[] = [
     moving: false,
   },
 ] as const;
+const NO_MAP_PEOPLE: readonly WorldMapPerson[] = [];
 
 function distanceFromViewportCenterKm(
   center: WorldMapViewport["center"],
@@ -163,6 +181,15 @@ export function MoverseApp() {
   const recordedRoute =
     streetRoute.coordinates.length >= 2 ? streetRoute.coordinates : rawRecordedRoute;
   const currentGpsPosition = rawRecordedRoute.at(-1);
+  const demoNavigation = useDemoNavigation({
+    initialPosition: DEMO_START_COORDINATE,
+  });
+  const demoSessionVisible = ["walking", "paused", "arrived"].includes(
+    demoNavigation.status,
+  );
+  const demoCameraTracking = ["walking", "arrived"].includes(
+    demoNavigation.status,
+  );
   // Rewards and live stats always use filtered sensor distance. Map matching is
   // visualization-only so an upstream route correction can never mint energy.
   const measuredDistanceMeters = gps.acceptedDistanceMeters;
@@ -235,9 +262,8 @@ export function MoverseApp() {
     setSelectedEvent((event) =>
       event && !viewport.visibleEventIds.includes(event.id) ? null : event,
     );
-    setSelectedSpot((spot) =>
-      spot && !viewport.visibleSpotIds.includes(spot.id) ? null : spot,
-    );
+    // Keep a selected destination pinned while the map reframes the complete
+    // walking route. The user explicitly closes or replaces this card.
     setSelectedPerson((person) =>
       person && !viewport.visiblePersonIds.includes(person.id) ? null : person,
     );
@@ -256,6 +282,7 @@ export function MoverseApp() {
   if (!store.hasOnboarded) return <Onboarding onComplete={store.finishOnboarding} />;
 
   const selectEvent = (event: MoveEvent) => {
+    demoNavigation.clear();
     setSelectedEvent(event);
     setSelectedSpot(null);
     setSelectedPerson(null);
@@ -275,6 +302,7 @@ export function MoverseApp() {
         return;
       }
       if (!moveActive) {
+        demoNavigation.clear();
         gps.reset();
         gps.start();
       }
@@ -299,6 +327,7 @@ export function MoverseApp() {
     setSelectedEvent(null);
     setSelectedSpot(null);
     setSelectedPerson(null);
+    demoNavigation.clear();
     setBumpOpen(true);
   };
 
@@ -365,11 +394,11 @@ export function MoverseApp() {
 
   return (
     <div className={`app-viewport ${isNightPreview ? "night-preview" : ""}`}>
-      <div className={`app-frame ${moveActive ? "move-mode" : ""}`}>
+      <div className={`app-frame ${moveActive || demoSessionVisible ? "move-mode" : ""}`}>
         <WorldMap
           spots={MOVE_SPOTS}
           events={store.events}
-          people={DEMO_MAP_PEOPLE}
+          people={demoSessionVisible ? NO_MAP_PEOPLE : DEMO_MAP_PEOPLE}
           user={{
             id: "nova",
             nickname: store.nickname,
@@ -378,35 +407,57 @@ export function MoverseApp() {
             level: store.level,
           }}
           selectedEventId={selectedEvent?.id ?? null}
+          selectedSpotId={selectedSpot?.id ?? demoNavigation.destination?.id ?? null}
           onSelectEvent={(mapEvent) => {
+            if (demoSessionVisible) return;
             const event = store.events.find((item) => item.id === mapEvent.id);
             if (event) selectEvent(event);
           }}
           onSelectSpot={(mapSpot) => {
+            if (demoSessionVisible) return;
             const spot = MOVE_SPOT_BY_ID.get(mapSpot.id);
             if (spot) {
               setSelectedSpot(spot);
               setSelectedEvent(null);
               setSelectedPerson(null);
+              void demoNavigation.planTo(spot);
             }
           }}
           onSelectPerson={(person) => {
+            if (demoSessionVisible) return;
+            demoNavigation.clear();
             setSelectedPerson(person);
             setSelectedEvent(null);
             setSelectedSpot(null);
           }}
           isNight={isNightPreview}
           recordedRoute={recordedRoute}
-          userPosition={currentGpsPosition}
+          navigationRoute={moveActive ? undefined : demoNavigation.plan?.coordinates}
+          navigationProgress={demoNavigation.progress}
+          userPosition={
+            moveActive
+              ? (currentGpsPosition ?? DEMO_START_COORDINATE)
+              : demoNavigation.currentPosition
+          }
+          userBearing={moveActive ? undefined : demoNavigation.bearing}
           center={[
             SAMSEONG_HILLSTATE_CENTER.longitude,
             SAMSEONG_HILLSTATE_CENTER.latitude,
           ]}
-          isTracking={moveActive && !gps.isPaused}
-          isUserMoving={moveActive && !gps.isPaused && gps.isMoving}
+          isTracking={
+            (moveActive && !gps.isPaused) || (!moveActive && demoCameraTracking)
+          }
+          isUserMoving={
+            (moveActive && !gps.isPaused && gps.isMoving) ||
+            (!moveActive && demoNavigation.status === "walking")
+          }
           followUser
           gpsAccuracyMeters={gps.accuracyMeters}
-          routeMatched={streetRoute.state === "matched"}
+          routeMatched={
+            moveActive
+              ? streetRoute.state === "matched"
+              : demoNavigation.plan?.source === "osrm"
+          }
           showHud={false}
           onViewportChange={handleViewportChange}
         />
@@ -495,19 +546,53 @@ export function MoverseApp() {
               }}
             />
           )}
+          {demoSessionVisible && demoNavigation.destination && demoNavigation.plan && (
+            <DemoWalkSession
+              status={demoNavigation.status}
+              destinationName={demoNavigation.destination.name}
+              distanceMeters={demoNavigation.plan.distanceMeters}
+              remainingMeters={demoNavigation.remainingMeters}
+              estimatedWalkingMinutes={demoNavigation.plan.estimatedWalkingMinutes}
+              progress={demoNavigation.progress}
+              routeSource={demoNavigation.plan.source}
+              onPause={demoNavigation.pause}
+              onResume={demoNavigation.resume}
+              onEnd={() => {
+                demoNavigation.clear();
+                setSelectedSpot(null);
+              }}
+              onShowSpot={demoNavigation.end}
+              onReplay={demoNavigation.replay}
+            />
+          )}
         </AnimatePresence>
 
         <AnimatePresence>
-          {selectedEvent && !eventFlowOpen && !moveActive && (
+          {selectedEvent && !eventFlowOpen && !moveActive && !demoSessionVisible && (
             <EventPreviewCard event={selectedEvent} joined={store.joinedEventIds.includes(selectedEvent.id)} onClose={() => setSelectedEvent(null)} onOpen={() => openEvent(selectedEvent)} />
           )}
-          {selectedSpot && !moveActive && (
+          {selectedSpot && !moveActive && !demoSessionVisible && (
             <SpotPreviewCard
               spot={selectedSpot}
               events={selectedSpotEvents}
-              onClose={() => setSelectedSpot(null)}
-              onEvent={openEvent}
+              routeStatus={demoNavigation.status}
+              routeDistanceMeters={demoNavigation.plan?.distanceMeters ?? null}
+              routeWalkingMinutes={demoNavigation.plan?.estimatedWalkingMinutes ?? null}
+              routeSource={demoNavigation.plan?.source ?? null}
+              routeError={demoNavigation.error}
+              isNight={isNightPreview}
+              onStartDemo={demoNavigation.start}
+              onRetry={() => void demoNavigation.planTo(selectedSpot)}
+              onClose={() => {
+                demoNavigation.clear();
+                setSelectedSpot(null);
+              }}
+              onEvent={(event) => {
+                demoNavigation.clear();
+                openEvent(event);
+              }}
               onCreate={(spot) => {
+                demoNavigation.clear();
                 setCreateSpot(spot);
                 setCreateOpen(true);
                 setSelectedSpot(null);
@@ -517,7 +602,7 @@ export function MoverseApp() {
               }}
             />
           )}
-          {selectedPerson && !moveActive && (
+          {selectedPerson && !moveActive && !demoSessionVisible && (
             <PersonPreviewCard
               person={selectedPerson}
               onClose={() => setSelectedPerson(null)}
@@ -530,7 +615,7 @@ export function MoverseApp() {
           )}
         </AnimatePresence>
 
-        {isNightPreview && !selectedEvent && !selectedSpot && !selectedPerson && !moveActive && (
+        {isNightPreview && !selectedEvent && !selectedSpot && !selectedPerson && !moveActive && !demoSessionVisible && (
           <motion.div className="night-message" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
             <span><MoonStar /></span><div><strong>오늘의 활동 스팟은 쉬는 중</strong><p>지금은 내일 참여할 활동을 예약할 수 있어요.</p></div>
             <button onClick={() => setActivityOpen(true)}>일정 보기</button>
@@ -727,6 +812,14 @@ function PersonPreviewCard({
 function SpotPreviewCard({
   spot,
   events,
+  routeStatus,
+  routeDistanceMeters,
+  routeWalkingMinutes,
+  routeSource,
+  routeError,
+  isNight,
+  onStartDemo,
+  onRetry,
   onClose,
   onEvent,
   onCreate,
@@ -734,12 +827,38 @@ function SpotPreviewCard({
 }: {
   spot: MoveSpot;
   events: MoveEvent[];
+  routeStatus: "idle" | "loading" | "ready" | "walking" | "paused" | "arrived" | "error";
+  routeDistanceMeters: number | null;
+  routeWalkingMinutes: number | null;
+  routeSource: "osrm" | "fallback" | null;
+  routeError: string | null;
+  isNight: boolean;
+  onStartDemo: () => void;
+  onRetry: () => void;
   onClose: () => void;
   onEvent: (event: MoveEvent) => void;
   onCreate: (spot: MoveSpot) => void;
   onDiscovery: (spot: MoveSpot) => void;
 }) {
   const isDiscovery = spot.kind === "discovery" || spot.eventEligible === false;
+  const routeReady = routeStatus === "ready";
+  const distanceLabel = routeDistanceMeters === null
+    ? "거리 계산 중"
+    : routeDistanceMeters < 1000
+      ? `${Math.round(routeDistanceMeters / 10) * 10}m`
+      : `${(routeDistanceMeters / 1000).toFixed(1)}km`;
+  const routeTitle = routeStatus === "loading"
+    ? "도보 경로를 찾는 중"
+    : routeStatus === "error"
+      ? "경로를 불러오지 못했어요"
+      : routeReady
+        ? `도보 ${distanceLabel} · 약 ${routeWalkingMinutes ?? 1}분`
+        : "도보 경로 준비";
+  const routeCaption = routeStatus === "error"
+    ? (routeError ?? "잠시 후 다시 시도해 주세요.")
+    : routeSource === "fallback"
+      ? "발표용 대체 경로 · 실제 길찾기와 다를 수 있음"
+      : "보행 도로를 따르는 경로";
 
   return (
     <motion.article className="map-preview-card spot-card" initial={{ y: 45, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 35, opacity: 0 }}>
@@ -762,16 +881,157 @@ function SpotPreviewCard({
           {spot.source.name} · {spot.source.referenceDate} <ExternalLink size={13} />
         </a>
       ) : null}
-      <div className="spot-energy"><div><span>스팟 활성도</span><b>{Math.round((spot.energy / spot.energyGoal) * 100)}%</b></div><i><em style={{ width: `${(spot.energy / spot.energyGoal) * 100}%` }} /></i></div>
-      {events.length ? <button className="card-primary" onClick={() => onEvent(events[0])}>{events[0].title}<ChevronRight size={18} /></button> : null}
-      {isDiscovery ? (
-        <button className="card-secondary spot-create-button" onClick={() => onDiscovery(spot)}>
-          <MapPinned size={17} /> 현장 40m 안에서 체크인
-        </button>
-      ) : (
-        <button className="card-secondary spot-create-button" onClick={() => onCreate(spot)}><Plus size={17} /> 이곳에서 활동 열기</button>
-      )}
+      <div className={`spot-route-summary ${routeStatus === "loading" ? "is-loading" : ""}`}>
+        <span><Navigation size={20} /></span>
+        <div><strong>{routeTitle}</strong><small>{routeCaption}</small></div>
+        {routeSource === "osrm" ? <b>도로</b> : null}
+      </div>
+      <button
+        className="card-primary spot-demo-button"
+        disabled={isNight || routeStatus === "loading"}
+        onClick={routeReady ? onStartDemo : onRetry}
+      >
+        {isNight
+          ? "21:00 이후 시연 시작 불가"
+          : routeStatus === "loading"
+            ? "경로 계산 중"
+            : routeStatus === "error"
+              ? "경로 다시 찾기"
+              : routeStatus === "idle"
+                ? "도보 경로 찾기"
+                : "시연으로 걸어가기"}
+        {!isNight && routeStatus !== "loading" ? <ChevronRight size={18} /> : null}
+      </button>
+      <p className="spot-demo-privacy">시연 모드 · 실제 GPS·운동 기록·리워드 미사용</p>
+      <div className="spot-secondary-actions">
+        {events.length ? (
+          <button className="card-secondary" onClick={() => onEvent(events[0])}>
+            <Footprints size={16} /> 예정 활동
+          </button>
+        ) : null}
+        {isDiscovery ? (
+          <button className="card-secondary" onClick={() => onDiscovery(spot)}>
+            <MapPinned size={16} /> 현장 체크인
+          </button>
+        ) : (
+          <button className="card-secondary" onClick={() => onCreate(spot)}>
+            <Plus size={16} /> 활동 열기
+          </button>
+        )}
+      </div>
     </motion.article>
+  );
+}
+
+function formatNavigationDistance(distanceMeters: number) {
+  if (distanceMeters > 0 && distanceMeters < 10) return "<10m";
+  if (distanceMeters < 1000) return `${Math.max(0, Math.round(distanceMeters / 10) * 10)}m`;
+  return `${(distanceMeters / 1000).toFixed(1)}km`;
+}
+
+function DemoWalkSession({
+  status,
+  destinationName,
+  distanceMeters,
+  remainingMeters,
+  estimatedWalkingMinutes,
+  progress,
+  routeSource,
+  onPause,
+  onResume,
+  onEnd,
+  onShowSpot,
+  onReplay,
+}: {
+  status: "idle" | "loading" | "ready" | "walking" | "paused" | "arrived" | "error";
+  destinationName: string;
+  distanceMeters: number;
+  remainingMeters: number;
+  estimatedWalkingMinutes: number;
+  progress: number;
+  routeSource: "osrm" | "fallback";
+  onPause: () => void;
+  onResume: () => void;
+  onEnd: () => void;
+  onShowSpot: () => void;
+  onReplay: () => void;
+}) {
+  const arrivalHeadingRef = useRef<HTMLHeadingElement>(null);
+  const arrived = status === "arrived";
+  const paused = status === "paused";
+  const progressPercent = Math.round(Math.min(1, Math.max(0, progress)) * 100);
+  const remainingMinutes = arrived
+    ? 0
+    : Math.max(1, Math.ceil(estimatedWalkingMinutes * (1 - progress)));
+
+  useEffect(() => {
+    if (arrived) arrivalHeadingRef.current?.focus();
+  }, [arrived]);
+
+  return (
+    <motion.section
+      className={`move-session demo-walk-session ${arrived ? "is-arrived" : ""}`}
+      initial={{ y: -20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: -12, opacity: 0 }}
+      aria-live="polite"
+    >
+      <button className="demo-session-close" onClick={onEnd} aria-label="경로 시연 종료">
+        <X size={17} />
+      </button>
+      {arrived ? (
+        <>
+          <div className="demo-arrival-mark"><CircleCheckBig size={24} /></div>
+          <small className="demo-eyebrow">ROUTE DEMO COMPLETE</small>
+          <h3 ref={arrivalHeadingRef} tabIndex={-1}>도착 시연 완료</h3>
+          <p><strong>{destinationName}</strong>까지 {formatNavigationDistance(distanceMeters)}를 걸었어요.</p>
+          <div className="demo-arrival-note">
+            실제 체크인과 리워드는 현장 GPS 40m 안에서만 가능해요.
+          </div>
+          <div className="move-actions demo-arrival-actions">
+            <button onClick={onShowSpot}>스팟 보기</button>
+            <button onClick={onReplay}><RotateCcw size={15} /> 다시 걷기</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className={`move-live demo-live ${paused ? "is-paused" : ""}`}>
+            <i /> {paused ? "시연 일시정지" : "시연 모드 · 실제 GPS 미사용"}
+          </div>
+          <div className="move-metrics demo-route-metrics">
+            <div className="move-distance"><small>남은 거리</small><strong>{formatNavigationDistance(remainingMeters)}</strong></div>
+            <div><small>도착까지</small><strong>약 {remainingMinutes}<em>분</em></strong></div>
+            <div><small>진행률</small><strong>{progressPercent}<em>%</em></strong></div>
+          </div>
+          <div
+            className="demo-route-progress"
+            role="progressbar"
+            aria-label={`${destinationName}까지 시연 진행률`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progressPercent}
+          >
+            <i style={{ width: `${progressPercent}%` }} />
+          </div>
+          <div className="move-destination demo-destination">
+            <span><Navigation size={20} /></span>
+            <p>
+              <small>{routeSource === "osrm" ? "보행 도로 경로" : "발표용 대체 경로"}</small>
+              <strong>{destinationName}</strong>
+            </p>
+            <b>{formatNavigationDistance(distanceMeters)}</b>
+          </div>
+          <p className="demo-session-privacy">운동 기록·Energy·Coin은 저장되지 않아요.</p>
+          <div className="move-actions">
+            <button onClick={paused ? onResume : onPause}>
+              {paused ? <Play size={15} /> : <Pause size={15} />}
+              {paused ? "계속 걷기" : "일시정지"}
+            </button>
+            <button onClick={onEnd}>시연 종료</button>
+          </div>
+        </>
+      )}
+    </motion.section>
   );
 }
 

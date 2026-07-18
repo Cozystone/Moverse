@@ -132,9 +132,12 @@ export interface WorldMapProps {
   movingProgress?: number;
   movingLabel?: string;
   recordedRoute?: readonly WorldMapCoordinate[];
+  navigationRoute?: readonly WorldMapCoordinate[];
+  navigationProgress?: number;
   isTracking?: boolean;
   isUserMoving?: boolean;
   followUser?: boolean;
+  userBearing?: number;
   gpsAccuracyMeters?: number | null;
   routeMatched?: boolean;
   center?: WorldMapCoordinate;
@@ -401,6 +404,34 @@ function routeCoordinates(center: WorldMapCoordinate): WorldMapCoordinate[] {
   ]);
 }
 
+function coordinateDistanceMeters(
+  start: WorldMapCoordinate,
+  end: WorldMapCoordinate,
+) {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const latitudeDelta = toRadians(end[1] - start[1]);
+  const longitudeDelta = toRadians(end[0] - start[0]);
+  const startLatitude = toRadians(start[1]);
+  const endLatitude = toRadians(end[1]);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(startLatitude) *
+      Math.cos(endLatitude) *
+      Math.sin(longitudeDelta / 2) ** 2;
+  return 12_742_017.6 * Math.asin(Math.min(1, Math.sqrt(haversine)));
+}
+
+function routeDistanceMetrics(coordinates: readonly WorldMapCoordinate[]) {
+  const cumulative = [0];
+  for (let index = 1; index < coordinates.length; index += 1) {
+    cumulative.push(
+      cumulative[index - 1] +
+        coordinateDistanceMeters(coordinates[index - 1], coordinates[index]),
+    );
+  }
+  return { cumulative, total: cumulative.at(-1) ?? 0 };
+}
+
 function pointAlongRoute(
   coordinates: readonly WorldMapCoordinate[],
   progress: number,
@@ -408,11 +439,19 @@ function pointAlongRoute(
   if (coordinates.length === 0) return DEFAULT_CENTER;
   if (coordinates.length === 1) return coordinates[0];
 
-  const scaled = clamp(progress, 0, 1) * (coordinates.length - 1);
-  const index = Math.min(Math.floor(scaled), coordinates.length - 2);
-  const fraction = scaled - index;
-  const current = coordinates[index];
-  const next = coordinates[index + 1];
+  const metrics = routeDistanceMetrics(coordinates);
+  if (metrics.total <= 0) return coordinates[0];
+  const target = clamp(progress, 0, 1) * metrics.total;
+  let index = 1;
+  while (index < metrics.cumulative.length && metrics.cumulative[index] < target) {
+    index += 1;
+  }
+  index = Math.min(index, coordinates.length - 1);
+  const startDistance = metrics.cumulative[index - 1];
+  const segmentDistance = Math.max(0.000_001, metrics.cumulative[index] - startDistance);
+  const fraction = clamp((target - startDistance) / segmentDistance, 0, 1);
+  const current = coordinates[index - 1];
+  const next = coordinates[index];
 
   return [
     current[0] + (next[0] - current[0]) * fraction,
@@ -425,13 +464,19 @@ function progressCoordinates(
   progress: number,
 ): WorldMapCoordinate[] {
   if (coordinates.length < 2) return [...coordinates];
+  const normalized = clamp(progress, 0, 1);
+  if (normalized <= 0) return [coordinates[0]];
+  if (normalized >= 1) return [...coordinates];
 
-  const scaled = clamp(progress, 0, 1) * (coordinates.length - 1);
-  const index = Math.min(Math.floor(scaled), coordinates.length - 2);
-  return [
-    ...coordinates.slice(0, index + 1),
-    pointAlongRoute(coordinates, progress),
-  ];
+  const metrics = routeDistanceMetrics(coordinates);
+  if (metrics.total <= 0) return [coordinates[0]];
+  const target = normalized * metrics.total;
+  let index = 1;
+  while (index < metrics.cumulative.length && metrics.cumulative[index] < target) {
+    index += 1;
+  }
+  index = Math.min(index, coordinates.length - 1);
+  return [...coordinates.slice(0, index), pointAlongRoute(coordinates, normalized)];
 }
 
 function makeLineFeature(
@@ -1397,9 +1442,12 @@ export function WorldMap({
   movingProgress = 0,
   movingLabel,
   recordedRoute,
+  navigationRoute,
+  navigationProgress = 0,
   isTracking,
   isUserMoving,
   followUser = true,
+  userBearing,
   gpsAccuracyMeters,
   routeMatched = false,
   center = DEFAULT_CENTER,
@@ -1428,6 +1476,7 @@ export function WorldMap({
   const spots = spotsProp ?? DEFAULT_SPOTS;
   const events = eventsProp ?? DEFAULT_EVENTS;
   const progress = normalizeProgress(movingProgress);
+  const navigationRouteProgress = normalizeProgress(navigationProgress);
   const centerLongitude = center[0];
   const centerLatitude = center[1];
   const stableCenter = useMemo<WorldMapCoordinate>(
@@ -1442,17 +1491,39 @@ export function WorldMap({
     () => routeCoordinates(stableCenter),
     [stableCenter],
   );
-  const hasRecordedRoute = recordedRoute !== undefined;
-  const route = hasRecordedRoute ? recordedRoute : demoRoute;
+  const safeRecordedRoute = useMemo<readonly WorldMapCoordinate[]>(
+    () => recordedRoute ?? [],
+    [recordedRoute],
+  );
+  const safeNavigationRoute = useMemo<readonly WorldMapCoordinate[]>(
+    () => navigationRoute ?? [],
+    [navigationRoute],
+  );
+  const usesRecordedRoute = recordedRoute !== undefined;
+  const hasNavigationRoute = safeNavigationRoute.length >= 2;
+  const route = hasNavigationRoute
+    ? safeNavigationRoute
+    : usesRecordedRoute
+      ? safeRecordedRoute
+      : demoRoute;
   const simulatedPosition = useMemo(
     () => pointAlongRoute(demoRoute, progress),
     [demoRoute, progress],
   );
-  const recordedPosition = route.length > 0 ? route[route.length - 1] : null;
+  const navigationPosition = hasNavigationRoute
+    ? pointAlongRoute(safeNavigationRoute, navigationRouteProgress)
+    : null;
+  const recordedPosition = safeRecordedRoute.length > 0
+    ? safeRecordedRoute[safeRecordedRoute.length - 1]
+    : null;
   const currentUserPosition =
-    userPosition ?? recordedPosition ?? locatedPosition ?? simulatedPosition;
+    userPosition ?? navigationPosition ?? recordedPosition ?? locatedPosition ?? simulatedPosition;
   const initialCameraCenterRef = useRef<WorldMapCoordinate>(currentUserPosition);
-  const moving = isUserMoving ?? (progress > 0 && progress < 1);
+  const moving = isUserMoving ?? (
+    hasNavigationRoute
+      ? navigationRouteProgress > 0 && navigationRouteProgress < 1
+      : progress > 0 && progress < 1
+  );
   const tracking = isTracking ?? moving;
   const shareablePeople = useMemo(
     () =>
@@ -1472,7 +1543,7 @@ export function WorldMap({
         modelUrl: MOVER_3D_MODEL_BY_ID[selfModelId],
         lng: currentUserPosition[0],
         lat: currentUserPosition[1],
-        bearing: moving ? 22 : -12,
+        bearing: typeof userBearing === "number" ? userBearing : moving ? 22 : -12,
         animation: moving ? ("walk" as const) : ("idle" as const),
         accent: MOVER_ACCENT_BY_ID[selfModelId],
         privacy: "precise" as const,
@@ -1490,7 +1561,7 @@ export function WorldMap({
         scale: 23.5,
       })),
     ];
-  }, [currentUserPosition, moving, shareablePeople, user.id, user.modelId]);
+  }, [currentUserPosition, moving, shareablePeople, user.id, user.modelId, userBearing]);
 
   const spotById = useMemo(
     () => new Map(spots.map((spot) => [spot.id, spot] as const)),
@@ -2002,9 +2073,51 @@ export function WorldMap({
     const progressSource = map.getSource("moverse-progress") as GeoJSONSource | undefined;
     routeSource?.setData(makeLineData(route));
     progressSource?.setData(
-      makeLineData(hasRecordedRoute ? route : progressCoordinates(route, progress)),
+      makeLineData(
+        hasNavigationRoute
+          ? progressCoordinates(route, navigationRouteProgress)
+          : usesRecordedRoute
+            ? route
+            : progressCoordinates(route, progress),
+      ),
     );
-  }, [hasRecordedRoute, mapState, progress, route]);
+  }, [
+    hasNavigationRoute,
+    mapState,
+    navigationRouteProgress,
+    progress,
+    route,
+    usesRecordedRoute,
+  ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || mapState !== "ready" || !hasNavigationRoute) return;
+
+    let west = Number.POSITIVE_INFINITY;
+    let south = Number.POSITIVE_INFINITY;
+    let east = Number.NEGATIVE_INFINITY;
+    let north = Number.NEGATIVE_INFINITY;
+    for (const [longitude, latitude] of safeNavigationRoute) {
+      west = Math.min(west, longitude);
+      south = Math.min(south, latitude);
+      east = Math.max(east, longitude);
+      north = Math.max(north, latitude);
+    }
+    if (![west, south, east, north].every(Number.isFinite)) return;
+
+    map.fitBounds(
+      [
+        [west, south],
+        [east, north],
+      ],
+      {
+        padding: { top: 118, right: 34, bottom: 292, left: 34 },
+        maxZoom: 16.2,
+        duration: 760,
+      },
+    );
+  }, [hasNavigationRoute, mapState, safeNavigationRoute]);
 
   useEffect(() => {
     const map = mapRef.current;

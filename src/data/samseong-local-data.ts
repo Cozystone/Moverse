@@ -9,6 +9,15 @@ export const SAMSEONG_HILLSTATE_CENTER = {
   address: "서울 강남구 삼성로111길 8",
 } as const;
 
+// Public transit entrance used only as the deterministic start point for the
+// presentation demo. It keeps the avatar off a residential address and makes
+// route playback reproducible when the browser has no geolocation permission.
+export const SAMSEONG_DEMO_START = {
+  longitude: 127.0524496,
+  latitude: 37.5129343,
+  label: "삼성중앙역 1번 출구",
+} as const;
+
 const REFERENCE_DATE = "2026-07-19";
 const OSM_MAP_URL = "https://www.openstreetmap.org";
 
