@@ -13,6 +13,7 @@ export type MoveSpot = {
   id: string;
   name: string;
   shortName: string;
+  areaName: string;
   description: string;
   longitude: number;
   latitude: number;

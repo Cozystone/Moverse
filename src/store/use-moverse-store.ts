@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { DEMO_EVENTS, DEMO_MATES } from "@/data/demo-data";
+import { DEMO_EVENTS, DEMO_MATES, DEMO_SPOTS } from "@/data/demo-data";
 import type { ActivityRecord, MoveEvent, MoveMate, SportType } from "@/types/moverse";
 
 type MoverseState = {
@@ -47,6 +47,29 @@ const initialState = {
   mates: DEMO_MATES,
   activities: [] as ActivityRecord[],
 };
+
+function mergeSeedEvents(persistedEvents: MoveEvent[] | undefined) {
+  if (!persistedEvents?.length) return DEMO_EVENTS;
+
+  const persistedById = new Map(persistedEvents.map((event) => [event.id, event]));
+  const seedIds = new Set(DEMO_EVENTS.map((event) => event.id));
+  const validSpotIds = new Set(DEMO_SPOTS.map((spot) => spot.id));
+  const userEvents = persistedEvents.filter(
+    (event) => !seedIds.has(event.id) && validSpotIds.has(event.spotId),
+  );
+  const refreshedSeedEvents = DEMO_EVENTS.map((event) => {
+    const persisted = persistedById.get(event.id);
+    return persisted
+      ? {
+          ...event,
+          participants: persisted.participants,
+          status: persisted.status,
+        }
+      : event;
+  });
+
+  return [...userEvents, ...refreshedSeedEvents];
+}
 
 export const useMoverseStore = create<MoverseState>()(
   persist(
@@ -117,6 +140,15 @@ export const useMoverseStore = create<MoverseState>()(
     }),
     {
       name: "moverse-demo-v1",
+      merge: (persistedState, currentState) => {
+        const persisted = (persistedState ?? {}) as Partial<MoverseState>;
+        return {
+          ...currentState,
+          ...persisted,
+          hydrated: false,
+          events: mergeSeedEvents(persisted.events),
+        };
+      },
       partialize: (state) => ({
         hasOnboarded: state.hasOnboarded,
         nickname: state.nickname,

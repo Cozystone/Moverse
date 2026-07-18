@@ -21,7 +21,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DEMO_SPOTS } from "@/data/demo-data";
 import { useMoverseStore } from "@/store/use-moverse-store";
 import { MODE_LABEL, SPORT_META, type MoveEvent, type MoveSpot } from "@/types/moverse";
@@ -30,6 +30,7 @@ import { MyVerse } from "./my-verse";
 import { CreateEventModal, EventFlowModal, type CreateEventInput } from "./activity-flow";
 import { SocialPanel } from "./social-panel";
 import { SportIcon } from "./sport-icon";
+import type { WorldMapViewport } from "./world-map";
 
 const WorldMap = dynamic(() => import("./world-map").then((mod) => mod.WorldMap), {
   ssr: false,
@@ -37,6 +38,25 @@ const WorldMap = dynamic(() => import("./world-map").then((mod) => mod.WorldMap)
 });
 
 type MainTab = "map" | "activity" | "move" | "social" | "verse";
+
+const SEOUL_WIDE_DISTANCE_KM = 12;
+
+function distanceFromViewportCenterKm(
+  center: WorldMapViewport["center"],
+  spot: Pick<MoveSpot, "latitude" | "longitude">,
+) {
+  const [centerLongitude, centerLatitude] = center;
+  const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+  const latitudeDelta = toRadians(spot.latitude - centerLatitude);
+  const longitudeDelta = toRadians(spot.longitude - centerLongitude);
+  const startLatitude = toRadians(centerLatitude);
+  const endLatitude = toRadians(spot.latitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(startLatitude) * Math.cos(endLatitude) * Math.sin(longitudeDelta / 2) ** 2;
+
+  return 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
 
 export function MoverseApp() {
   const store = useMoverseStore();
@@ -54,6 +74,7 @@ export function MoverseApp() {
   const [moveProgress, setMoveProgress] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [isNightPreview, setIsNightPreview] = useState(false);
+  const [mapViewport, setMapViewport] = useState<WorldMapViewport | null>(null);
   const energyMilestoneRef = useRef(0);
 
   useEffect(() => {
@@ -90,6 +111,53 @@ export function MoverseApp() {
     () => store.events.filter((event) => store.joinedEventIds.includes(event.id)),
     [store.events, store.joinedEventIds],
   );
+
+  const mapContext = useMemo(() => {
+    if (!mapViewport) {
+      return {
+        areaName: DEMO_SPOTS[0]?.areaName ?? "서울 전역",
+        visibleSpotCount: DEMO_SPOTS.length,
+        visibleEventCount: store.events.length,
+      };
+    }
+
+    const nearestSpot = DEMO_SPOTS.reduce<{ distanceKm: number; spot: MoveSpot } | null>(
+      (nearest, spot) => {
+        const distanceKm = distanceFromViewportCenterKm(mapViewport.center, spot);
+        return !nearest || distanceKm < nearest.distanceKm ? { distanceKm, spot } : nearest;
+      },
+      null,
+    );
+
+    return {
+      areaName:
+        mapViewport.zoom > 11.6 && nearestSpot && nearestSpot.distanceKm < SEOUL_WIDE_DISTANCE_KM
+          ? nearestSpot.spot.areaName
+          : "서울 전역",
+      visibleSpotCount: mapViewport.visibleSpotIds.length,
+      visibleEventCount: mapViewport.visibleEventIds.length,
+    };
+  }, [mapViewport, store.events.length]);
+
+  const handleViewportChange = useCallback((viewport: WorldMapViewport) => {
+    setMapViewport(viewport);
+    setSelectedEvent((event) =>
+      event && !viewport.visibleEventIds.includes(event.id) ? null : event,
+    );
+    setSelectedSpot((spot) =>
+      spot && !viewport.visibleSpotIds.includes(spot.id) ? null : spot,
+    );
+  }, []);
+
+  if (!store.hydrated) {
+    return (
+      <div className="app-viewport">
+        <div className="app-frame">
+          <MapLoading />
+        </div>
+      </div>
+    );
+  }
 
   if (!store.hasOnboarded) return <Onboarding onComplete={store.finishOnboarding} />;
 
@@ -189,6 +257,7 @@ export function MoverseApp() {
           isNight={isNightPreview}
           movingProgress={moveProgress}
           showHud={false}
+          onViewportChange={handleViewportChange}
         />
 
         <div className="map-top-gradient" />
@@ -217,9 +286,15 @@ export function MoverseApp() {
         </header>
 
         <div className="map-context-bar">
-          <div className="map-context-place" aria-label="현재 지역: 여의도 한강공원">
+          <div
+            className="map-context-place"
+            aria-label={`현재 지역: ${mapContext.areaName}, 보이는 스팟 ${mapContext.visibleSpotCount}개, 이벤트 ${mapContext.visibleEventCount}개`}
+          >
             <MapPinned size={17} />
-            <span><strong>여의도 한강공원</strong><small>주변 활동 {store.events.length}</small></span>
+            <span>
+              <strong>{mapContext.areaName}</strong>
+              <small>스팟 {mapContext.visibleSpotCount} · 이벤트 {mapContext.visibleEventCount}</small>
+            </span>
           </div>
           <button className="close-time-button" onClick={() => setIsNightPreview((value) => !value)}>
             {isNightPreview ? <MoonStar size={15} /> : <SunMedium size={15} />}

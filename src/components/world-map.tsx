@@ -38,6 +38,19 @@ export type WorldMapSport =
 
 export type WorldMapCoordinate = [longitude: number, latitude: number];
 
+export interface WorldMapViewport {
+  center: WorldMapCoordinate;
+  zoom: number;
+  bounds: {
+    west: number;
+    south: number;
+    east: number;
+    north: number;
+  };
+  visibleSpotIds: string[];
+  visibleEventIds: string[];
+}
+
 export type WorldMapSpotLevel =
   | "seed"
   | "trail"
@@ -87,6 +100,7 @@ export interface WorldMapProps {
   selectedSpotId?: string | null;
   onSelectEvent?: (event: WorldMapEvent) => void;
   onSelectSpot?: (spot: WorldMapSpot) => void;
+  onViewportChange?: (viewport: WorldMapViewport) => void;
   isNight?: boolean;
   movingProgress?: number;
   movingLabel?: string;
@@ -100,15 +114,16 @@ export interface WorldMapProps {
 
 type MapState = "loading" | "ready" | "fallback";
 
-const DEFAULT_CENTER: WorldMapCoordinate = [126.9256, 37.5264];
+const DEFAULT_CENTER: WorldMapCoordinate = [126.9360586, 37.5256731];
+const DEFAULT_USER: WorldMapUser = { nickname: "NOVA", initials: "N", level: 7 };
 
 const DEFAULT_SPOTS: readonly WorldMapSpot[] = [
   {
     id: "spot-river",
     name: "한강 러닝 게이트",
     shortName: "러닝 게이트",
-    longitude: 126.9218,
-    latitude: 37.5287,
+    longitude: 126.9360586,
+    latitude: 37.5256731,
     level: "landmark",
     levelNumber: 8,
     distanceLabel: "620m",
@@ -117,13 +132,13 @@ const DEFAULT_SPOTS: readonly WorldMapSpot[] = [
   },
   {
     id: "spot-court",
-    name: "브릿지 농구 코트",
-    shortName: "농구 코트",
-    longitude: 126.9298,
-    latitude: 37.5249,
+    name: "브릿지 팀플레이 노드",
+    shortName: "팀플레이 노드",
+    longitude: 126.9331,
+    latitude: 37.5285,
     level: "pulse",
     levelNumber: 6,
-    distanceLabel: "1.2km",
+    distanceLabel: "280m",
     verified: true,
     closesAt: "20:30",
   },
@@ -131,11 +146,11 @@ const DEFAULT_SPOTS: readonly WorldMapSpot[] = [
     id: "spot-plaza",
     name: "무버스 커뮤니티 광장",
     shortName: "커뮤니티 광장",
-    longitude: 126.9269,
-    latitude: 37.5309,
+    longitude: 126.934,
+    latitude: 37.5282,
     level: "active",
     levelNumber: 4,
-    distanceLabel: "840m",
+    distanceLabel: "360m",
     verified: true,
     closesAt: "20:00",
   },
@@ -143,11 +158,11 @@ const DEFAULT_SPOTS: readonly WorldMapSpot[] = [
     id: "spot-seed",
     name: "그린필드 풋살 스팟",
     shortName: "풋살 스팟",
-    longitude: 126.9336,
-    latitude: 37.5282,
+    longitude: 126.935,
+    latitude: 37.5279,
     level: "seed",
     levelNumber: 1,
-    distanceLabel: "1.7km",
+    distanceLabel: "480m",
     verified: false,
     closesAt: "19:30",
   },
@@ -167,8 +182,8 @@ const DEFAULT_EVENTS: readonly WorldMapEvent[] = [
   },
   {
     id: "event-basketball",
-    spotId: "spot-court",
-    title: "초보자 농구 3 × 3",
+    spotId: "spot-boramae",
+    title: "보라매 초보자 농구 3 × 3",
     sport: "basketball",
     startLabel: "내일 16:00",
     participants: 4,
@@ -670,11 +685,46 @@ function addMapLayers(
   map.addSource("moverse-spots", {
     type: "geojson",
     data: EMPTY_POINT_COLLECTION,
+    cluster: true,
+    clusterMaxZoom: 13,
+    clusterRadius: 58,
+  });
+  map.addLayer({
+    id: "moverse-spot-clusters",
+    type: "circle",
+    source: "moverse-spots",
+    maxzoom: 14,
+    filter: ["has", "point_count"],
+    paint: {
+      "circle-radius": ["step", ["get", "point_count"], 20, 4, 24, 8, 29],
+      "circle-color": isNight ? "#163e34" : "#0b664c",
+      "circle-stroke-color": isNight ? "#d9fff1" : "#ffffff",
+      "circle-stroke-width": 3,
+      "circle-opacity": 0.96,
+      "circle-pitch-alignment": "map",
+    },
+  });
+  map.addLayer({
+    id: "moverse-spot-cluster-count",
+    type: "symbol",
+    source: "moverse-spots",
+    maxzoom: 14,
+    filter: ["has", "point_count"],
+    layout: {
+      "text-field": ["get", "point_count_abbreviated"],
+      "text-font": ["Noto Sans Bold"],
+      "text-size": 12,
+      "text-allow-overlap": true,
+      "text-ignore-placement": true,
+    },
+    paint: { "text-color": "#ffffff" },
   });
   map.addLayer({
     id: "moverse-spots-halo",
     type: "circle",
     source: "moverse-spots",
+    minzoom: 13.8,
+    filter: ["!", ["has", "point_count"]],
     paint: {
       "circle-radius": ["case", ["==", ["get", "selected"], 1], 24, 18],
       "circle-color": ["get", "color"],
@@ -687,6 +737,8 @@ function addMapLayers(
     id: "moverse-spots-core",
     type: "circle",
     source: "moverse-spots",
+    minzoom: 13.8,
+    filter: ["!", ["has", "point_count"]],
     paint: {
       "circle-radius": ["case", ["==", ["get", "selected"], 1], 13, 10],
       "circle-color": ["get", "color"],
@@ -700,6 +752,8 @@ function addMapLayers(
     id: "moverse-spots-symbol",
     type: "symbol",
     source: "moverse-spots",
+    minzoom: 13.8,
+    filter: ["!", ["has", "point_count"]],
     layout: {
       "text-field": ["get", "symbol"],
       "text-font": ["Noto Sans Bold"],
@@ -713,6 +767,8 @@ function addMapLayers(
     id: "moverse-spots-label",
     type: "symbol",
     source: "moverse-spots",
+    minzoom: 15.3,
+    filter: ["!", ["has", "point_count"]],
     layout: {
       "text-field": ["get", "label"],
       "text-font": ["Noto Sans Bold"],
@@ -734,6 +790,8 @@ function addMapLayers(
     id: "moverse-spots-hit",
     type: "circle",
     source: "moverse-spots",
+    minzoom: 13.8,
+    filter: ["!", ["has", "point_count"]],
     paint: { "circle-radius": 24, "circle-opacity": 0 },
   });
 
@@ -745,6 +803,7 @@ function addMapLayers(
     id: "moverse-events-halo",
     type: "circle",
     source: "moverse-events",
+    minzoom: 13.8,
     paint: {
       "circle-radius": [
         "case",
@@ -769,6 +828,7 @@ function addMapLayers(
     id: "moverse-events-core",
     type: "circle",
     source: "moverse-events",
+    minzoom: 13.8,
     paint: {
       "circle-radius": ["case", ["==", ["get", "selected"], 1], 14, 11],
       "circle-color": ["get", "color"],
@@ -782,6 +842,7 @@ function addMapLayers(
     id: "moverse-events-symbol",
     type: "symbol",
     source: "moverse-events",
+    minzoom: 13.8,
     layout: {
       "text-field": ["get", "symbol"],
       "text-font": ["Noto Sans Bold"],
@@ -795,6 +856,7 @@ function addMapLayers(
     id: "moverse-events-label",
     type: "symbol",
     source: "moverse-events",
+    minzoom: 15.3,
     layout: {
       "text-field": ["get", "label"],
       "text-font": ["Noto Sans Bold"],
@@ -816,6 +878,7 @@ function addMapLayers(
     id: "moverse-events-hit",
     type: "circle",
     source: "moverse-events",
+    minzoom: 13.8,
     paint: { "circle-radius": 26, "circle-opacity": 0 },
   });
 
@@ -870,12 +933,13 @@ export function WorldMap({
   selectedSpotId,
   onSelectEvent,
   onSelectSpot,
+  onViewportChange,
   isNight = false,
   movingProgress = 0,
   movingLabel,
   center = DEFAULT_CENTER,
   userPosition,
-  user = { nickname: "NOVA", initials: "N", level: 7 },
+  user = DEFAULT_USER,
   operatingEndsAt = "21:00",
   className,
   showHud = true,
@@ -890,6 +954,8 @@ export function WorldMap({
   const [localSelectedEventId, setLocalSelectedEventId] = useState<string | null>(null);
   const [localSelectedSpotId, setLocalSelectedSpotId] = useState<string | null>(null);
   const [locatedPosition, setLocatedPosition] = useState<WorldMapCoordinate | null>(null);
+  const [visibleSpotIds, setVisibleSpotIds] = useState<string[] | null>(null);
+  const [visibleEventIds, setVisibleEventIds] = useState<string[] | null>(null);
 
   const spots = spotsProp ?? DEFAULT_SPOTS;
   const events = eventsProp ?? DEFAULT_EVENTS;
@@ -934,6 +1000,22 @@ export function WorldMap({
     },
     [stableCenter, spotById],
   );
+
+  const viewportDataRef = useRef({
+    spots,
+    events,
+    eventCoordinate,
+    onViewportChange,
+  });
+  const publishViewportRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    viewportDataRef.current = {
+      spots,
+      events,
+      eventCoordinate,
+      onViewportChange,
+    };
+  }, [eventCoordinate, events, onViewportChange, spots]);
 
   const selectSpot = useCallback(
     (spot: WorldMapSpot) => {
@@ -1023,7 +1105,7 @@ export function WorldMap({
           zoom: 14.95,
           pitch: 42,
           bearing: -18,
-          minZoom: 12,
+          minZoom: 10.4,
           maxZoom: 19,
           maxPitch: 60,
           attributionControl: false,
@@ -1037,7 +1119,7 @@ export function WorldMap({
           new maplibre.AttributionControl({ compact: true }),
           "bottom-right",
         );
-        map.getCanvas().setAttribute("aria-label", "Moverse 여의도 활동 지도");
+        map.getCanvas().setAttribute("aria-label", "Moverse 서울 활동 지도");
         map.getCanvas().setAttribute("role", "region");
 
         const onLoad = () => {
@@ -1047,12 +1129,64 @@ export function WorldMap({
           try {
             addMapLayers(map, route, initialNightRef.current);
 
+            const publishViewport = () => {
+              if (!map) return;
+              const bounds = map.getBounds();
+              const mapCenter = map.getCenter();
+              const data = viewportDataRef.current;
+              const nextVisibleSpotIds = data.spots
+                .filter((spot) => bounds.contains([spot.longitude, spot.latitude]))
+                .map((spot) => spot.id);
+              const nextVisibleEventIds = data.events
+                .filter((activity, index) =>
+                  bounds.contains(data.eventCoordinate(activity, index)),
+                )
+                .map((activity) => activity.id);
+              const viewport: WorldMapViewport = {
+                center: [mapCenter.lng, mapCenter.lat],
+                zoom: map.getZoom(),
+                bounds: {
+                  west: bounds.getWest(),
+                  south: bounds.getSouth(),
+                  east: bounds.getEast(),
+                  north: bounds.getNorth(),
+                },
+                visibleSpotIds: nextVisibleSpotIds,
+                visibleEventIds: nextVisibleEventIds,
+              };
+
+              setVisibleSpotIds(nextVisibleSpotIds);
+              setVisibleEventIds(nextVisibleEventIds);
+              data.onViewportChange?.(viewport);
+            };
+            publishViewportRef.current = publishViewport;
+
             const onMapClick = (event: MapMouseEvent) => {
               if (!map) return;
               const features = map.queryRenderedFeatures(event.point, {
-                layers: ["moverse-events-hit", "moverse-spots-hit"],
+                layers: [
+                  "moverse-spot-clusters",
+                  "moverse-events-hit",
+                  "moverse-spots-hit",
+                ],
               });
               const feature = features[0];
+              if (feature?.layer.id === "moverse-spot-clusters") {
+                const clusterId = Number(feature.properties?.cluster_id);
+                if (feature.geometry.type !== "Point" || !Number.isFinite(clusterId)) return;
+                const source = map.getSource("moverse-spots") as GeoJSONSource | undefined;
+                const [longitude, latitude] = feature.geometry.coordinates;
+                if (!source || typeof longitude !== "number" || typeof latitude !== "number") return;
+                void source.getClusterExpansionZoom(clusterId).then((zoom) => {
+                  map?.easeTo({
+                    center: [longitude, latitude],
+                    zoom: Math.min(zoom, 15.2),
+                    pitch: 42,
+                    duration: 620,
+                  });
+                });
+                return;
+              }
               const id = feature?.properties?.id;
               if (typeof id !== "string") return;
 
@@ -1078,7 +1212,11 @@ export function WorldMap({
             const onPointerMove = (event: MapMouseEvent) => {
               if (!map) return;
               const interactive = map.queryRenderedFeatures(event.point, {
-                layers: ["moverse-events-hit", "moverse-spots-hit"],
+                layers: [
+                  "moverse-spot-clusters",
+                  "moverse-events-hit",
+                  "moverse-spots-hit",
+                ],
               }).length > 0;
               map.getCanvas().style.cursor = interactive ? "pointer" : "";
             };
@@ -1089,6 +1227,8 @@ export function WorldMap({
             map.on("click", onMapClick);
             map.on("mousemove", onPointerMove);
             map.on("mouseout", resetPointer);
+            map.on("moveend", publishViewport);
+            publishViewport();
           } catch {
             setMapState("fallback");
             return;
@@ -1125,6 +1265,7 @@ export function WorldMap({
     return () => {
       disposed = true;
       if (loadTimer) clearTimeout(loadTimer);
+      publishViewportRef.current = null;
       map?.remove();
       mapRef.current = null;
     };
@@ -1202,6 +1343,11 @@ export function WorldMap({
   ]);
 
   useEffect(() => {
+    if (mapState !== "ready") return;
+    publishViewportRef.current?.();
+  }, [eventCoordinate, events, mapState, spots]);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map || mapState !== "ready") return;
 
@@ -1253,6 +1399,15 @@ export function WorldMap({
     .filter(Boolean)
     .join(" ");
 
+  const visibleSpotIdSet = visibleSpotIds ? new Set(visibleSpotIds) : null;
+  const visibleEventIdSet = visibleEventIds ? new Set(visibleEventIds) : null;
+  const visibleSpots = visibleSpotIdSet
+    ? spots.filter((spot) => visibleSpotIdSet.has(spot.id))
+    : spots;
+  const visibleEvents = visibleEventIdSet
+    ? events.filter((event) => visibleEventIdSet.has(event.id))
+    : events;
+
   const progressStyle = {
     "--mw-progress": progress,
     "--mw-bearing": `${-bearing}deg`,
@@ -1280,7 +1435,7 @@ export function WorldMap({
       <div className="mw-map-activity-list" aria-label="주변 활동 목록">
         <strong>주변 활동</strong>
         <div className="mw-map-activity-list__items">
-          {spots.map((spot) => (
+          {visibleSpots.map((spot) => (
             <button
               type="button"
               key={spot.id}
@@ -1296,12 +1451,14 @@ export function WorldMap({
               </span>
             </button>
           ))}
-          {events.map((event, index) => (
+          {visibleEvents.map((event) => {
+            const eventIndex = events.findIndex((candidate) => candidate.id === event.id);
+            return (
             <button
               type="button"
               key={event.id}
               className={actualSelectedEventId === event.id ? "is-selected" : undefined}
-              onClick={() => selectEvent(event, index)}
+              onClick={() => selectEvent(event, Math.max(0, eventIndex))}
             >
               <span
                 className="mw-map-activity-list__dot"
@@ -1316,7 +1473,8 @@ export function WorldMap({
                 </small>
               </span>
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
 

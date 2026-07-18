@@ -82,7 +82,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               </div>
               <div className="intro-activity-row">
                 <span className="intro-sport basketball"><SportIcon sport="basketball" size={19} /></span>
-                <p><strong>초보자 농구 3대3</strong><small>1.2km · 2자리 남음</small></p>
+                <p><strong>보라매 초보자 농구 3대3</strong><small>6.8km · 2자리 남음</small></p>
                 <b>내일</b>
               </div>
             </div>
