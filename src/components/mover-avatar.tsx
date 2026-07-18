@@ -35,9 +35,9 @@ const RING_STYLES: Record<MoverAvatarRing, string> = {
 };
 
 const FRAMING_STYLES: Record<MoverAvatarFraming, string> = {
-  face: "scale-[2.8] translate-y-[27%]",
-  bust: "scale-[2.05] translate-y-[20%]",
-  full: "scale-100",
+  face: "origin-top scale-[2.8]",
+  bust: "origin-top scale-[2.05]",
+  full: "origin-center scale-100",
 };
 
 const STATUS_STYLES: Record<MoverAvatarStatus, { color: string; label: string }> = {
@@ -76,6 +76,7 @@ export function MoverAvatar({
           src={avatar.src}
           alt={avatar.alt}
           fill
+          unoptimized
           preload={preload}
           sizes={`${sizeStyle.px}px`}
           className={clsx("z-[1] object-contain transition-transform duration-200", FRAMING_STYLES[framing])}

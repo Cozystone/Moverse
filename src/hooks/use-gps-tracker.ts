@@ -57,6 +57,7 @@ export interface GpsTrackerResult {
   lastRejectionReason: GeoPointRejectionReason | null;
   isActive: boolean;
   isPaused: boolean;
+  isMoving: boolean;
   start: () => void;
   pause: () => void;
   resume: () => void;
@@ -65,6 +66,7 @@ export interface GpsTrackerResult {
 }
 
 const DEFAULT_MAX_STORED_POINTS = 5_000;
+const MOVEMENT_IDLE_TIMEOUT_MS = 5_500;
 
 const isRunningStatus = (status: GpsTrackerStatus) =>
   status === "requesting-permission" || status === "tracking" || status === "weak-signal";
@@ -102,6 +104,7 @@ export function useGpsTracker(options: UseGpsTrackerOptions = {}): GpsTrackerRes
   const [lastRejectionReason, setLastRejectionReason] =
     useState<GeoPointRejectionReason | null>(null);
   const [clockRunning, setClockRunning] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
 
   const statusRef = useRef<GpsTrackerStatus>("idle");
   const watchIdRef = useRef<number | null>(null);
@@ -110,10 +113,30 @@ export function useGpsTracker(options: UseGpsTrackerOptions = {}): GpsTrackerRes
   const acceptedDistanceRef = useRef(0);
   const accumulatedActiveMsRef = useRef(0);
   const activeStartedAtRef = useRef<number | null>(null);
+  const movementIdleTimerRef = useRef<number | null>(null);
 
   const updateStatus = useCallback((nextStatus: GpsTrackerStatus) => {
     statusRef.current = nextStatus;
     setStatus(nextStatus);
+  }, []);
+
+  const clearMovement = useCallback(() => {
+    if (movementIdleTimerRef.current !== null) {
+      window.clearTimeout(movementIdleTimerRef.current);
+      movementIdleTimerRef.current = null;
+    }
+    setIsMoving(false);
+  }, []);
+
+  const markMovement = useCallback(() => {
+    if (movementIdleTimerRef.current !== null) {
+      window.clearTimeout(movementIdleTimerRef.current);
+    }
+    setIsMoving(true);
+    movementIdleTimerRef.current = window.setTimeout(() => {
+      movementIdleTimerRef.current = null;
+      setIsMoving(false);
+    }, MOVEMENT_IDLE_TIMEOUT_MS);
   }, []);
 
   const clearWatch = useCallback(() => {
@@ -172,6 +195,12 @@ export function useGpsTracker(options: UseGpsTrackerOptions = {}): GpsTrackerRes
         return;
       }
 
+      if (evaluation.reason === "movement" && evaluation.distanceMeters > 0) {
+        markMovement();
+      } else {
+        clearMovement();
+      }
+
       lastAcceptedPointRef.current = point;
       setAcceptedPoints((current) => appendBounded(current, point, maxStoredPoints));
       setLastRejectionReason(null);
@@ -184,11 +213,12 @@ export function useGpsTracker(options: UseGpsTrackerOptions = {}): GpsTrackerRes
       updateStatus(evaluation.signalQuality === "good" ? "tracking" : "weak-signal");
       setError(null);
     },
-    [filterConfig, maxStoredPoints, updateStatus],
+    [clearMovement, filterConfig, markMovement, maxStoredPoints, updateStatus],
   );
 
   const handlePositionError = useCallback(
     (positionError: GeolocationPositionError) => {
+      clearMovement();
       if (positionError.code === positionError.PERMISSION_DENIED) {
         clearWatch();
         finalizeClock();
@@ -208,7 +238,7 @@ export function useGpsTracker(options: UseGpsTrackerOptions = {}): GpsTrackerRes
       });
       updateStatus("weak-signal");
     },
-    [clearWatch, finalizeClock, updateStatus],
+    [clearMovement, clearWatch, finalizeClock, updateStatus],
   );
 
   const beginWatch = useCallback(() => {
@@ -220,6 +250,7 @@ export function useGpsTracker(options: UseGpsTrackerOptions = {}): GpsTrackerRes
     if (isRunningStatus(statusRef.current)) return;
 
     clearWatch();
+    clearMovement();
     lastAcceptedPointRef.current = null;
     setError(null);
     setSignalQuality("unknown");
@@ -245,15 +276,16 @@ export function useGpsTracker(options: UseGpsTrackerOptions = {}): GpsTrackerRes
       setError({ code: "unknown", message: "GPS 추적을 시작하지 못했어요." });
       updateStatus("error");
     }
-  }, [beginClock, clearWatch, finalizeClock, handlePosition, handlePositionError, updateStatus, watchOptions]);
+  }, [beginClock, clearMovement, clearWatch, finalizeClock, handlePosition, handlePositionError, updateStatus, watchOptions]);
 
   const pause = useCallback(() => {
     if (!isRunningStatus(statusRef.current)) return;
     clearWatch();
+    clearMovement();
     finalizeClock();
     lastAcceptedPointRef.current = null;
     updateStatus("paused");
-  }, [clearWatch, finalizeClock, updateStatus]);
+  }, [clearMovement, clearWatch, finalizeClock, updateStatus]);
 
   const resume = useCallback(() => {
     if (statusRef.current !== "paused") return;
@@ -262,13 +294,15 @@ export function useGpsTracker(options: UseGpsTrackerOptions = {}): GpsTrackerRes
 
   const stop = useCallback(() => {
     clearWatch();
+    clearMovement();
     finalizeClock();
     lastAcceptedPointRef.current = null;
     updateStatus("stopped");
-  }, [clearWatch, finalizeClock, updateStatus]);
+  }, [clearMovement, clearWatch, finalizeClock, updateStatus]);
 
   const reset = useCallback(() => {
     clearWatch();
+    clearMovement();
     activeStartedAtRef.current = null;
     accumulatedActiveMsRef.current = 0;
     acceptedDistanceRef.current = 0;
@@ -284,13 +318,16 @@ export function useGpsTracker(options: UseGpsTrackerOptions = {}): GpsTrackerRes
     setSignalQuality("unknown");
     setError(null);
     updateStatus("idle");
-  }, [clearWatch, updateStatus]);
+  }, [clearMovement, clearWatch, updateStatus]);
 
   useEffect(
     () => () => {
       watchGenerationRef.current += 1;
       if (watchIdRef.current !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      if (movementIdleTimerRef.current !== null) {
+        window.clearTimeout(movementIdleTimerRef.current);
       }
     },
     [],
@@ -311,6 +348,7 @@ export function useGpsTracker(options: UseGpsTrackerOptions = {}): GpsTrackerRes
     lastRejectionReason,
     isActive: isRunningStatus(status),
     isPaused: status === "paused",
+    isMoving,
     start: beginWatch,
     pause,
     resume,

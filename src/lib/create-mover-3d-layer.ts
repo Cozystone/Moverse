@@ -99,7 +99,9 @@ interface MoverInstance {
 const DEFAULT_LAYER_ID = "moverse-people-3d";
 const DEFAULT_ACCENT = "#c7ff32";
 const MAX_FRAME_DELTA_SECONDS = 1 / 20;
+const MAX_TEXTURE_ANISOTROPY = 8;
 const MODEL_UPRIGHT_ROTATION = new THREE.Matrix4().makeRotationX(Math.PI / 2);
+const MODEL_FORWARD_OFFSET_DEGREES = 180;
 
 function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value));
@@ -174,6 +176,40 @@ function cloneInstanceMaterials(root: THREE.Object3D): THREE.Material[] {
   return ownedMaterials;
 }
 
+function configureTemplateRendering(
+  root: THREE.Object3D,
+  maxSupportedAnisotropy: number,
+): void {
+  const textures = new Set<THREE.Texture>();
+
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const meshMaterials = Array.isArray(object.material)
+      ? object.material
+      : [object.material];
+
+    for (const material of meshMaterials) {
+      if (material instanceof THREE.MeshBasicMaterial) {
+        material.toneMapped = false;
+      }
+      for (const value of Object.values(material)) {
+        if (value instanceof THREE.Texture) textures.add(value);
+      }
+    }
+  });
+
+  for (const texture of textures) {
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = true;
+    texture.anisotropy = Math.max(
+      1,
+      Math.min(MAX_TEXTURE_ANISOTROPY, maxSupportedAnisotropy),
+    );
+    texture.needsUpdate = true;
+  }
+}
+
 function disposeTemplate(template: ModelTemplate): void {
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();
@@ -209,7 +245,7 @@ function setAnchorTransform(instance: MoverInstance, zoomScale = 1): void {
   const metreScale =
     coordinate.meterInMercatorCoordinateUnits() * person.scale * zoomScale;
   const yaw = new THREE.Matrix4().makeRotationY(
-    THREE.MathUtils.degToRad(person.bearing),
+    THREE.MathUtils.degToRad(MODEL_FORWARD_OFFSET_DEGREES - person.bearing),
   );
 
   // This is the same T * S * Rx pattern used by MapLibre's official Three.js
@@ -311,6 +347,10 @@ export function createMover3DLayer(
     const request = loader
       .loadAsync(modelUrl)
       .then((gltf: GLTF) => {
+        configureTemplateRendering(
+          gltf.scene,
+          renderer?.capabilities.getMaxAnisotropy() ?? 1,
+        );
         const template = {
           scene: gltf.scene,
           animations: gltf.animations,

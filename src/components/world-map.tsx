@@ -131,7 +131,7 @@ export interface WorldMapProps {
   movingProgress?: number;
   movingLabel?: string;
   recordedRoute?: readonly WorldMapCoordinate[];
-  isTracking?: boolean;
+  isUserMoving?: boolean;
   followUser?: boolean;
   gpsAccuracyMeters?: number | null;
   routeMatched?: boolean;
@@ -1395,7 +1395,7 @@ export function WorldMap({
   movingProgress = 0,
   movingLabel,
   recordedRoute,
-  isTracking,
+  isUserMoving,
   followUser = true,
   gpsAccuracyMeters,
   routeMatched = false,
@@ -1449,7 +1449,7 @@ export function WorldMap({
   const currentUserPosition =
     userPosition ?? recordedPosition ?? locatedPosition ?? simulatedPosition;
   const initialCameraCenterRef = useRef<WorldMapCoordinate>(currentUserPosition);
-  const moving = isTracking ?? (progress > 0 && progress < 1);
+  const moving = isUserMoving ?? (progress > 0 && progress < 1);
   const shareablePeople = useMemo(
     () =>
       people.filter(
@@ -1469,10 +1469,10 @@ export function WorldMap({
         lng: currentUserPosition[0],
         lat: currentUserPosition[1],
         bearing: moving ? 22 : -12,
-        animation: moving ? ("sprint" as const) : ("idle" as const),
+        animation: moving ? ("walk" as const) : ("idle" as const),
         accent: MOVER_ACCENT_BY_ID[selfModelId],
         privacy: "precise" as const,
-        scale: 20,
+        scale: 26,
       },
       ...shareablePeople.map((person) => ({
         id: person.id,
@@ -1483,7 +1483,7 @@ export function WorldMap({
         animation: person.moving ? ("walk" as const) : ("idle" as const),
         accent: MOVER_ACCENT_BY_ID[person.modelId],
         privacy: person.visibility,
-        scale: 17.5,
+        scale: 23.5,
       })),
     ];
   }, [currentUserPosition, moving, shareablePeople, user.id, user.modelId]);

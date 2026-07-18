@@ -46,6 +46,12 @@ maximum zoom, while their feet remain anchored to the same coordinate.
 Characters disappear below zoom
 14, keeping Seoul-wide map movement lightweight.
 
+Tracking state and movement state are intentionally separate. Callers should
+send `walk` only after filtered GPS samples are accepted as real movement; the
+first location fix, stationary jitter, long sample gaps, pause, and stop remain
+`idle`. Model textures are rendered with mipmaps and anisotropic filtering so
+the sloped map view stays clean while moving.
+
 ## Character assets
 
 The four bundled models are intentionally human rather than robot/fantasy

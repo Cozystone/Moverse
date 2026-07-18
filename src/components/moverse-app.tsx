@@ -71,7 +71,7 @@ const DEMO_MAP_PEOPLE: readonly WorldMapPerson[] = [
     expiresAt: "21:00",
     accuracyMeters: 12,
     bearing: 24,
-    moving: true,
+    moving: false,
   },
   {
     id: "dash",
@@ -98,7 +98,7 @@ const DEMO_MAP_PEOPLE: readonly WorldMapPerson[] = [
     expiresAt: "20:45",
     accuracyMeters: 18,
     bearing: 12,
-    moving: true,
+    moving: false,
   },
 ] as const;
 
@@ -393,7 +393,7 @@ export function MoverseApp() {
           isNight={isNightPreview}
           recordedRoute={recordedRoute}
           userPosition={currentGpsPosition}
-          isTracking={moveActive && !gps.isPaused}
+          isUserMoving={moveActive && !gps.isPaused && gps.isMoving}
           followUser
           gpsAccuracyMeters={gps.accuracyMeters}
           routeMatched={streetRoute.state === "matched"}
@@ -419,7 +419,7 @@ export function MoverseApp() {
               <MoverAvatar
                 avatarId="nova"
                 size="xs"
-                status={moveActive ? "moving" : "online"}
+                status={moveActive ? (gps.isMoving ? "moving" : "idle") : "online"}
                 ring="lime"
                 framing="bust"
                 preload
