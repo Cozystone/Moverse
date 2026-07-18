@@ -144,6 +144,12 @@ button { -webkit-tap-highlight-color: transparent; }
 .spot-heading > div { min-width: 0; }
 .spot-heading small { display: block; color: #5ca384; font-size: 9px; font-weight: 850; letter-spacing: .08em; }
 .spot-heading p { white-space: normal; line-height: 1.4; }
+.spot-facility { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 9px 10px; border: 1px solid rgba(202,255,82,.16); border-radius: 11px; color: #caff52; background: rgba(202,255,82,.055); }
+.spot-facility > span { min-width: 0; flex: 1; }
+.spot-facility strong, .spot-facility small { display: block; }
+.spot-facility strong { color: #f5f9f6; font-size: 11px; font-weight: 850; }
+.spot-facility small { margin-top: 1px; color: #9ca8a2; font-size: 9px; font-weight: 700; }
+.spot-facility a { display: flex; flex: 0 0 auto; align-items: center; gap: 3px; color: #caff52; font-size: 9px; font-weight: 850; text-decoration: none; }
 .spot-level-icon { width: 50px; height: 50px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 12px; color: #245f4a; background: #e2f1e9; }
 .spot-level-icon.landmark { color: #536d13; background: #edf7cc; }
 .spot-level-icon.seed { background: #e6f4e8; }
@@ -151,6 +157,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .spot-energy > div { display: flex; justify-content: space-between; margin-bottom: 5px; color: #64756f; font-size: 10px; }
 .spot-energy > i { display: block; height: 7px; overflow: hidden; border-radius: 999px; background: #e8efeb; }
 .spot-energy em { display: block; height: 100%; border-radius: inherit; background: #82b53b; }
+.spot-card .card-primary + .spot-create-button { margin-top: 8px; }
 
 .move-session { position: absolute; z-index: 32; top: max(14px, env(safe-area-inset-top)); left: 10px; right: 10px; padding: 14px; color: #effff9; border: 1px solid rgba(255,255,255,.13); border-radius: 18px; background: rgba(5,7,6,.93); box-shadow: 0 16px 36px rgba(0,0,0,.3); -webkit-backdrop-filter: blur(18px) saturate(126%); backdrop-filter: blur(18px) saturate(126%); }
 .move-mode .map-header, .move-mode .bottom-nav, .move-mode .bump-fab { opacity: 0; pointer-events: none; }

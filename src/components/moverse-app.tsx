@@ -8,6 +8,7 @@ import {
   CircleCheckBig,
   Coins,
   Compass,
+  ExternalLink,
   MapPinned,
   MoonStar,
   Plus,
@@ -66,6 +67,20 @@ function distanceFromViewportCenterKm(
   return 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 }
 
+function formatKoreanStartLabel(startsAt: string) {
+  const date = new Date(startsAt);
+  if (Number.isNaN(date.getTime())) return "시간 확인 필요";
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+}
+
 export function MoverseApp() {
   const store = useMoverseStore();
   const [activeTab, setActiveTab] = useState<MainTab>("map");
@@ -73,6 +88,7 @@ export function MoverseApp() {
   const [selectedSpot, setSelectedSpot] = useState<MoveSpot | null>(null);
   const [eventFlowOpen, setEventFlowOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createSpot, setCreateSpot] = useState<MoveSpot | null>(null);
   const [socialOpen, setSocialOpen] = useState(false);
   const [verseOpen, setVerseOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
@@ -237,7 +253,19 @@ export function MoverseApp() {
 
   const handleEventCreate = (draft: CreateEventInput) => {
     const sport = draft.sport;
-    const selectedEventSpot = DEMO_SPOTS.find((spot) => spot.name === draft.spotName) ?? DEMO_SPOTS[0];
+    const selectedEventSpot = DEMO_SPOTS.find((spot) => spot.id === draft.spotId);
+    if (!selectedEventSpot || !selectedEventSpot.verified || !selectedEventSpot.sports.includes(sport)) {
+      setToast("종목과 위치가 확인된 스팟을 다시 선택해 주세요.");
+      return;
+    }
+    if ((sport === "basketball" || sport === "football") && !selectedEventSpot.facility) {
+      setToast("농구와 축구는 확인된 코트·구장에서만 열 수 있어요.");
+      return;
+    }
+    if (selectedEventSpot.facility?.bookingRequired && !draft.reservationConfirmed) {
+      setToast("구장 예약 완료를 확인한 뒤 활동을 열어 주세요.");
+      return;
+    }
     const event: MoveEvent = {
       id: `event-user-${Date.now()}`,
       spotId: selectedEventSpot.id,
@@ -248,7 +276,7 @@ export function MoverseApp() {
       sport,
       mode: draft.mode,
       skillLevel: "beginner",
-      startLabel: "내일 " + (draft.startsAt.split("T")[1]?.slice(0, 5) || "18:00"),
+      startLabel: formatKoreanStartLabel(draft.startsAt),
       startsAt: draft.startsAt,
       durationMinutes: draft.durationMinutes,
       capacity: draft.capacity,
@@ -261,6 +289,7 @@ export function MoverseApp() {
       status: "scheduled",
       rewardCoin: 28,
       rewardXp: 150,
+      reservationConfirmed: draft.reservationConfirmed,
     };
     store.addEvent(event);
     setSelectedEvent(event);
@@ -369,7 +398,17 @@ export function MoverseApp() {
             <EventPreviewCard event={selectedEvent} joined={store.joinedEventIds.includes(selectedEvent.id)} onClose={() => setSelectedEvent(null)} onOpen={() => openEvent(selectedEvent)} />
           )}
           {selectedSpot && !moveActive && (
-            <SpotPreviewCard spot={selectedSpot} events={selectedSpotEvents} onClose={() => setSelectedSpot(null)} onEvent={openEvent} />
+            <SpotPreviewCard
+              spot={selectedSpot}
+              events={selectedSpotEvents}
+              onClose={() => setSelectedSpot(null)}
+              onEvent={openEvent}
+              onCreate={(spot) => {
+                setCreateSpot(spot);
+                setCreateOpen(true);
+                setSelectedSpot(null);
+              }}
+            />
           )}
         </AnimatePresence>
 
@@ -391,6 +430,7 @@ export function MoverseApp() {
               onEvent={openEvent}
               onCreate={() => {
                 setActivityOpen(false);
+                setCreateSpot(null);
                 setCreateOpen(true);
                 setActiveTab("map");
               }}
@@ -425,10 +465,12 @@ export function MoverseApp() {
 
         <CreateEventModal
           open={createOpen}
-          onClose={() => { setCreateOpen(false); setActiveTab("map"); }}
+          onClose={() => { setCreateOpen(false); setCreateSpot(null); setActiveTab("map"); }}
           onCreate={handleEventCreate}
           availableCoin={store.coin}
-          initialSpotName="리버사이드 러닝 게이트"
+          spots={DEMO_SPOTS}
+          initialSpotName={createSpot?.name ?? DEMO_SPOTS[0].name}
+          initialSport={createSpot?.sports[0]}
         />
 
         <SocialPanel
@@ -493,7 +535,7 @@ function EventPreviewCard({ event, joined, onClose, onOpen }: { event: MoveEvent
       <button className="preview-close" onClick={onClose} aria-label="닫기"><X size={17} /></button>
       <div className="event-preview-top">
         <span className="sport-orb" style={{ "--sport-color": sport.color, "--sport-soft": sport.soft } as React.CSSProperties}><SportIcon sport={event.sport} size={26} /></span>
-        <div><div className="event-badges"><b>{MODE_LABEL[event.mode]}</b>{event.beginnerFriendly && <i>초보자 환영</i>}</div><h3>{event.title}</h3><p>{event.startLabel} · {event.durationMinutes}분</p></div>
+        <div><div className="event-badges"><b>{MODE_LABEL[event.mode]}</b>{event.reservationConfirmed ? <i>구장 예약 완료</i> : event.beginnerFriendly && <i>초보자 환영</i>}</div><h3>{event.title}</h3><p>{event.startLabel} · {event.durationMinutes}분</p></div>
       </div>
       <div className="event-preview-meta">
         <span><Users size={15} /> {event.participants}/{event.capacity}명</span>
@@ -505,13 +547,47 @@ function EventPreviewCard({ event, joined, onClose, onOpen }: { event: MoveEvent
   );
 }
 
-function SpotPreviewCard({ spot, events, onClose, onEvent }: { spot: MoveSpot; events: MoveEvent[]; onClose: () => void; onEvent: (event: MoveEvent) => void }) {
+const FACILITY_LABEL = {
+  "basketball-court": "공공 농구장",
+  "football-field": "축구장",
+  "futsal-court": "풋살장",
+  "badminton-court": "배드민턴장",
+  "running-track": "러닝 트랙",
+  "multi-use-court": "다목적 구장",
+} as const;
+
+function SpotPreviewCard({
+  spot,
+  events,
+  onClose,
+  onEvent,
+  onCreate,
+}: {
+  spot: MoveSpot;
+  events: MoveEvent[];
+  onClose: () => void;
+  onEvent: (event: MoveEvent) => void;
+  onCreate: (spot: MoveSpot) => void;
+}) {
   return (
     <motion.article className="map-preview-card spot-card" initial={{ y: 45, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 35, opacity: 0 }}>
       <button className="preview-close" onClick={onClose} aria-label="닫기"><X size={17} /></button>
       <div className="spot-heading"><span className={`spot-level-icon ${spot.level}`}><MapPinned size={23} /></span><div><small>인증 스팟 · Lv.{spot.levelNumber}</small><h3>{spot.name}</h3><p>{spot.description}</p></div></div>
+      {spot.facility ? (
+        <div className="spot-facility">
+          <CircleCheckBig size={17} />
+          <span>
+            <strong>{FACILITY_LABEL[spot.facility.type]}</strong>
+            <small>{spot.facility.accessLabel}</small>
+          </span>
+          <a href={spot.facility.officialUrl} target="_blank" rel="noreferrer" aria-label={`${spot.name} 서울시 공식 정보 열기`}>
+            공식 정보 <ExternalLink size={13} />
+          </a>
+        </div>
+      ) : null}
       <div className="spot-energy"><div><span>스팟 활성도</span><b>{Math.round((spot.energy / spot.energyGoal) * 100)}%</b></div><i><em style={{ width: `${(spot.energy / spot.energyGoal) * 100}%` }} /></i></div>
-      {events.length ? <button className="card-primary" onClick={() => onEvent(events[0])}>{events[0].title}<ChevronRight size={18} /></button> : <button className="card-secondary"><Plus size={17} /> 이곳에서 활동 열기</button>}
+      {events.length ? <button className="card-primary" onClick={() => onEvent(events[0])}>{events[0].title}<ChevronRight size={18} /></button> : null}
+      <button className="card-secondary spot-create-button" onClick={() => onCreate(spot)}><Plus size={17} /> 이곳에서 활동 열기</button>
     </motion.article>
   );
 }

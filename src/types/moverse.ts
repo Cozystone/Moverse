@@ -9,6 +9,28 @@ export type SportType =
 export type EventMode = "casual" | "practice" | "match" | "raid";
 export type SkillLevel = "first" | "beginner" | "casual" | "experienced";
 
+export type FacilityType =
+  | "basketball-court"
+  | "football-field"
+  | "futsal-court"
+  | "badminton-court"
+  | "running-track"
+  | "multi-use-court";
+
+export type MoveFacility = {
+  type: FacilityType;
+  access: "free" | "reservation" | "paid" | "mixed";
+  accessLabel: string;
+  bookingRequired: boolean;
+  indoor: boolean;
+  address: string;
+  officialUrl: string;
+  reservationUrl?: string;
+  sourceName: string;
+  sourceLastVerified: string;
+  notes?: string;
+};
+
 export type MoveSpot = {
   id: string;
   name: string;
@@ -17,7 +39,7 @@ export type MoveSpot = {
   description: string;
   longitude: number;
   latitude: number;
-  category: "park" | "court" | "trail" | "plaza";
+  category: "park" | "court" | "field" | "trail" | "plaza";
   level: "seed" | "trail" | "active" | "pulse" | "landmark";
   levelNumber: number;
   energy: number;
@@ -26,6 +48,7 @@ export type MoveSpot = {
   verified: boolean;
   closesAt: string;
   distanceLabel: string;
+  facility?: MoveFacility;
 };
 
 export type MoveEvent = {
@@ -51,6 +74,7 @@ export type MoveEvent = {
   status: "scheduled" | "check-in" | "active" | "completed";
   rewardCoin: number;
   rewardXp: number;
+  reservationConfirmed?: boolean;
 };
 
 export type MoveMate = {

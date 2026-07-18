@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -125,6 +126,7 @@ export interface CreateEventInput {
   beginnerFriendly: boolean;
   hostCost: number;
   spotId?: string;
+  reservationConfirmed?: boolean;
 }
 
 export interface CreateEventModalProps {
@@ -132,6 +134,7 @@ export interface CreateEventModalProps {
   onClose: () => void;
   onCreate: (event: CreateEventInput) => void;
   initialSpotName?: string;
+  initialSport?: SportType;
   availableCoin?: number;
   coinBalance?: number;
   spots?: readonly StoreMoveSpot[];
@@ -1507,32 +1510,56 @@ export function EventFlowModal({
 export function CreateEventModal(props: CreateEventModalProps) {
   return (
     <AnimatePresence>
-      {props.open && <CreateEventForm key={props.initialSpotName ?? "new-event"} {...props} />}
+      {props.open && <CreateEventForm key={`${props.initialSpotName ?? "new-event"}-${props.initialSport ?? "auto"}`} {...props} />}
     </AnimatePresence>
   );
+}
+
+function isCompatibleEventSpot(spot: StoreMoveSpot, sport: SportType) {
+  if (!spot.verified || !spot.sports.includes(sport)) return false;
+  return sport !== "basketball" && sport !== "football" ? true : Boolean(spot.facility);
 }
 
 function CreateEventForm({
   onClose,
   onCreate,
   initialSpotName = "",
+  initialSport,
   availableCoin,
   coinBalance,
   spots = [],
 }: CreateEventModalProps) {
   const usableCoin = availableCoin ?? coinBalance ?? 280;
-  const [sport, setSport] = useState<SportType>("running");
+  const initialSpot = spots.find(
+    (spot) => spot.name === initialSpotName || spot.shortName === initialSpotName,
+  );
+  const [sport, setSport] = useState<SportType>(
+    initialSport ?? initialSpot?.sports[0] ?? "running",
+  );
   const [mode, setMode] = useState<EventMode>("casual");
-  const [spotName, setSpotName] = useState(initialSpotName);
+  const [spotId, setSpotId] = useState(() => {
+    const initialSportValue = initialSport ?? initialSpot?.sports[0] ?? "running";
+    return initialSpot && isCompatibleEventSpot(initialSpot, initialSportValue)
+      ? initialSpot.id
+      : spots.find((spot) => isCompatibleEventSpot(spot, initialSportValue))?.id ?? "";
+  });
   const [startsAt, setStartsAt] = useState(getDefaultStartsAt);
   const [durationMinutes, setDurationMinutes] = useState(40);
   const [capacity, setCapacity] = useState(6);
   const [beginnerFriendly, setBeginnerFriendly] = useState(true);
   const [hostCost, setHostCost] = useState(28);
+  const [reservationConfirmed, setReservationConfirmed] = useState(false);
   const [error, setError] = useState("");
   const titleId = useId();
-  const spotListId = useId();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const compatibleSpots = useMemo(
+    () => spots.filter((spot) => isCompatibleEventSpot(spot, sport)),
+    [spots, sport],
+  );
+  const selectedSpotId = compatibleSpots.some((spot) => spot.id === spotId)
+    ? spotId
+    : compatibleSpots[0]?.id ?? "";
+  const selectedSpot = compatibleSpots.find((spot) => spot.id === selectedSpotId);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -1548,13 +1575,20 @@ function CreateEventForm({
     };
   }, [onClose]);
 
-  const validateTime = () => {
+  const validateTime = (selectedSpot?: StoreMoveSpot) => {
     const start = new Date(startsAt);
     if (Number.isNaN(start.getTime())) return "시작 시간을 선택해 주세요.";
     const end = new Date(start.getTime() + durationMinutes * 60_000);
     const startHour = start.getHours() + start.getMinutes() / 60;
     const endHour = end.getHours() + end.getMinutes() / 60;
-    if (startHour < 6 || end.getDate() !== start.getDate() || endHour > 21) {
+    const [closingHour = 21, closingMinute = 0] = (selectedSpot?.closesAt ?? "21:00")
+      .split(":")
+      .map(Number);
+    const spotClosingTime = Math.min(21, closingHour + closingMinute / 60);
+    if (startHour < 6 || end.getDate() !== start.getDate() || endHour > spotClosingTime) {
+      if (selectedSpot && spotClosingTime < 21) {
+        return `${selectedSpot.shortName} 활동은 ${selectedSpot.closesAt}까지 끝나야 해요.`;
+      }
       return "대면 활동은 06:00~21:00 안에 끝나야 해요.";
     }
     return "";
@@ -1562,11 +1596,11 @@ function CreateEventForm({
 
   const handleSubmit = (formEvent: FormEvent<HTMLFormElement>) => {
     formEvent.preventDefault();
-    if (!spotName.trim()) {
-      setError("공개된 활동 지점을 입력해 주세요.");
+    if (!selectedSpot) {
+      setError("이 종목을 할 수 있는 검증된 시설을 선택해 주세요.");
       return;
     }
-    const timeError = validateTime();
+    const timeError = validateTime(selectedSpot);
     if (timeError) {
       setError(timeError);
       return;
@@ -1575,20 +1609,25 @@ function CreateEventForm({
       setError("보유한 무브 코인보다 개최 비용이 커요.");
       return;
     }
+    if (selectedSpot.facility?.bookingRequired && !reservationConfirmed) {
+      setError("구장 예약을 완료한 뒤 확인해 주세요.");
+      return;
+    }
 
     onCreate({
       title: SPORT_META[sport].defaultTitle,
       sport,
       mode,
-      spotName: spotName.trim(),
+      spotName: selectedSpot.name,
       startsAt: new Date(startsAt).toISOString(),
       durationMinutes,
       capacity,
       beginnerFriendly,
       hostCost,
-      spotId: spots.find(
-        (spot) => spot.name === spotName.trim() || spot.shortName === spotName.trim(),
-      )?.id,
+      spotId: selectedSpot.id,
+      reservationConfirmed: selectedSpot.facility?.bookingRequired
+        ? reservationConfirmed
+        : undefined,
     });
     onClose();
   };
@@ -1618,7 +1657,7 @@ function CreateEventForm({
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setSport(value)}
+                  onClick={() => { setSport(value); setReservationConfirmed(false); setError(""); }}
                   aria-pressed={sport === value}
                   className={clsx(
                     "flex min-h-16 items-center gap-3 rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b9ff57]",
@@ -1661,24 +1700,50 @@ function CreateEventForm({
               <span className="text-xs font-extrabold text-white/80">활동 지점</span>
               <span className="relative mt-2 block">
                 <MapPin className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-white/75" />
-                <input
-                  value={spotName}
-                  list={spotListId}
-                  onChange={(inputEvent) => { setSpotName(inputEvent.target.value); setError(""); }}
-                  placeholder="예: 중앙공원 러닝 게이트"
+                <select
+                  value={selectedSpotId}
+                  onChange={(selectEvent) => { setSpotId(selectEvent.target.value); setReservationConfirmed(false); setError(""); }}
                   required
-                  className="min-h-13 w-full rounded-xl border border-white/15 bg-[#141f1b] py-3 pl-10 pr-4 text-sm font-bold text-white outline-none placeholder:font-semibold placeholder:text-white/60 focus:border-[#b9ff57]/50 focus:ring-2 focus:ring-[#b9ff57]/15"
-                />
-                <datalist id={spotListId}>
-                  {spots.map((spot) => (
-                    <option key={spot.id} value={spot.name}>
-                      {spot.shortName}
+                  className="min-h-13 w-full appearance-none rounded-xl border border-white/15 bg-[#141f1b] py-3 pl-10 pr-4 text-sm font-bold text-white outline-none focus:border-[#b9ff57]/50 focus:ring-2 focus:ring-[#b9ff57]/15"
+                >
+                  {compatibleSpots.length === 0 ? (
+                    <option value="">이 종목의 검증 시설이 없어요</option>
+                  ) : null}
+                  {compatibleSpots.map((spot) => (
+                    <option key={spot.id} value={spot.id}>
+                      {spot.name}{spot.facility ? ` · ${spot.facility.accessLabel}` : ""}
                     </option>
                   ))}
-                </datalist>
+                </select>
               </span>
-              <span className="mt-1.5 block text-[11px] font-semibold text-white/75">공개되고 검증된 활동 지점에서만 개최할 수 있어요.</span>
+              <span className="mt-1.5 block text-[11px] font-semibold text-white/75">서울시 자료로 위치와 종목이 확인된 시설만 선택할 수 있어요.</span>
             </label>
+
+            {selectedSpot?.facility?.bookingRequired ? (
+              <div className="rounded-xl border border-amber-200/15 bg-[#211e16] p-3.5">
+                <label className="flex cursor-pointer items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={reservationConfirmed}
+                    onChange={(inputEvent) => { setReservationConfirmed(inputEvent.target.checked); setError(""); }}
+                    className="peer sr-only"
+                  />
+                  <span className="grid size-6 place-items-center rounded-lg border border-white/15 bg-white/5 text-transparent transition peer-checked:border-[#b9ff57] peer-checked:bg-[#b9ff57] peer-checked:text-[#0b1b13] peer-focus-visible:ring-2 peer-focus-visible:ring-[#b9ff57]"><Check className="size-4" /></span>
+                  <span className="min-w-0 flex-1">
+                    <strong className="block text-xs font-extrabold">구장 예약을 완료했어요</strong>
+                    <small className="mt-0.5 block text-[10px] font-semibold text-white/65">예약한 날짜와 시간을 그대로 입력해 주세요.</small>
+                  </span>
+                </label>
+                <a
+                  href={selectedSpot.facility.reservationUrl ?? selectedSpot.facility.officialUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2.5 flex min-h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[.055] text-[11px] font-extrabold text-amber-100 no-underline"
+                >
+                  서울시 예약 페이지 확인
+                </a>
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-2 gap-2.5">
               <label className="block">
@@ -1758,7 +1823,10 @@ function CreateEventForm({
 
         <div className="shrink-0 border-t border-white/10 bg-[#0d1714] px-5 pb-[max(env(safe-area-inset-bottom),18px)] pt-4">
           <div className="mb-3 flex items-center justify-between text-[11px] font-bold"><span className="text-white/80">{SPORT_META[sport].label} · {MODE_META[mode].label} · {capacity}명</span><span className={clsx("font-bold", hostCost > usableCoin ? "text-red-300" : "text-amber-200")}>-{hostCost} 코인</span></div>
-          <PrimaryButton type="submit" disabled={hostCost > usableCoin || !startsAt || !spotName.trim()}>
+          <PrimaryButton
+            type="submit"
+            disabled={hostCost > usableCoin || !startsAt || !selectedSpotId || Boolean(selectedSpot?.facility?.bookingRequired && !reservationConfirmed)}
+          >
             <Radio className="size-4.5" /> 활동 열기
           </PrimaryButton>
         </div>

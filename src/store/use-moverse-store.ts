@@ -53,9 +53,18 @@ function mergeSeedEvents(persistedEvents: MoveEvent[] | undefined) {
 
   const persistedById = new Map(persistedEvents.map((event) => [event.id, event]));
   const seedIds = new Set(DEMO_EVENTS.map((event) => event.id));
-  const validSpotIds = new Set(DEMO_SPOTS.map((spot) => spot.id));
+  const spotById = new Map(DEMO_SPOTS.map((spot) => [spot.id, spot]));
   const userEvents = persistedEvents.filter(
-    (event) => !seedIds.has(event.id) && validSpotIds.has(event.spotId),
+    (event) => {
+      if (seedIds.has(event.id)) return false;
+      const spot = spotById.get(event.spotId);
+      if (!spot?.verified || !spot.sports.includes(event.sport)) return false;
+      if ((event.sport === "basketball" || event.sport === "football") && !spot.facility) {
+        return false;
+      }
+      if (spot.facility?.bookingRequired && !event.reservationConfirmed) return false;
+      return true;
+    },
   );
   const refreshedSeedEvents = DEMO_EVENTS.map((event) => {
     const persisted = persistedById.get(event.id);
