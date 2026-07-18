@@ -40,7 +40,10 @@ movers.destroy();
 `privacy: "hidden"` is never added to the Three.js scene. For
 `privacy: "approximate"`, the caller must send an already-obfuscated location;
 the layer renders a wider, softer 3D ground ring to communicate that state.
-The default budget is four animated people and characters disappear below zoom
+The default budget is four animated people. Character scale is compensated
+around `referenceZoom` so models stay legible instead of covering the map at
+maximum zoom, while their feet remain anchored to the same coordinate.
+Characters disappear below zoom
 14, keeping Seoul-wide map movement lightweight.
 
 ## Character assets

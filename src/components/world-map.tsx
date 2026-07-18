@@ -173,6 +173,7 @@ const MOVER_ACCENT_BY_ID: Record<
   dash: "#ff975f",
   mint: "#58e6b7",
 };
+const MOVER_3D_MIN_ZOOM = 13.8;
 
 const DEFAULT_SPOTS: readonly WorldMapSpot[] = [
   {
@@ -1679,9 +1680,10 @@ export function WorldMap({
             try {
               const movers3D = createMover3DLayer({
                 id: "moverse-people-3d",
-                minZoom: 13.8,
+                minZoom: MOVER_3D_MIN_ZOOM,
                 maxPeople: 4,
                 defaultScale: 2.45,
+                referenceZoom: 15.3,
               });
               map.addLayer(movers3D.layer, "moverse-user-label");
               mover3DRef.current = movers3D;
@@ -1735,7 +1737,8 @@ export function WorldMap({
               if (!map) return;
               const activeMap = map;
 
-              const personAtPoint = interactionRef.current.people
+              const personAtPoint = activeMap.getZoom() >= MOVER_3D_MIN_ZOOM
+                ? interactionRef.current.people
                 .flatMap((person) => {
                   if (typeof person.longitude !== "number" || typeof person.latitude !== "number") {
                     return [];
@@ -1756,7 +1759,8 @@ export function WorldMap({
                   };
                 })
                 .filter((candidate) => candidate.isInsideModel)
-                .sort((left, right) => left.distance - right.distance)[0];
+                .sort((left, right) => left.distance - right.distance)[0]
+                : undefined;
 
               if (personAtPoint) {
                 interactionRef.current.selectPerson(personAtPoint.person);

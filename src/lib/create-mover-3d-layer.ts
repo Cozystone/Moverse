@@ -52,6 +52,8 @@ export interface Mover3DLayerOptions {
   maxPeople?: number;
   /** Default stylised scale. Kenney's characters are roughly two units tall. */
   defaultScale?: number;
+  /** Zoom where the configured model scale is rendered at 1:1. */
+  referenceZoom?: number;
   defaultAccent?: string;
   animationFadeSeconds?: number;
   onError?: (error: Error) => void;
@@ -198,13 +200,14 @@ function disposeTemplate(template: ModelTemplate): void {
   for (const texture of textures) texture.dispose();
 }
 
-function setAnchorTransform(instance: MoverInstance): void {
+function setAnchorTransform(instance: MoverInstance, zoomScale = 1): void {
   const { person, anchor } = instance;
   const coordinate = MercatorCoordinate.fromLngLat(
     [person.lng, person.lat],
     person.altitude,
   );
-  const metreScale = coordinate.meterInMercatorCoordinateUnits() * person.scale;
+  const metreScale =
+    coordinate.meterInMercatorCoordinateUnits() * person.scale * zoomScale;
   const yaw = new THREE.Matrix4().makeRotationY(
     THREE.MathUtils.degToRad(person.bearing),
   );
@@ -268,6 +271,7 @@ export function createMover3DLayer(
   const minZoom = options.minZoom ?? 14;
   const maxPeople = Math.max(1, Math.min(12, options.maxPeople ?? 4));
   const defaultScale = options.defaultScale ?? 2.7;
+  const referenceZoom = options.referenceZoom ?? 15.3;
   const defaultAccent = options.defaultAccent ?? DEFAULT_ACCENT;
   const fadeSeconds = options.animationFadeSeconds ?? 0.18;
 
@@ -522,7 +526,12 @@ export function createMover3DLayer(
       previousFrame = now;
 
       const pulse = 1 + Math.sin(now / 420) * 0.055;
+      const zoomScale = 2 ** (referenceZoom - map.getZoom());
       for (const instance of instances.values()) {
+        // A map-space model would otherwise grow exponentially while zooming.
+        // Compensating around the reference zoom keeps the character readable
+        // like a game-map marker while its base stays on the exact coordinate.
+        setAnchorTransform(instance, zoomScale);
         instance.mixer.update(delta);
         const privacyScale = instance.person.privacy === "approximate" ? 1.55 : 1;
         instance.ring.scale.setScalar(privacyScale * pulse);
