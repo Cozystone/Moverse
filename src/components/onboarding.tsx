@@ -72,7 +72,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             <p>지도에서 주변 활동을 찾고, 인증된 학생들과 안전하게 만나 운동을 시작하세요.</p>
             <div className="intro-preview" aria-label="오늘 가까운 활동 예시">
               <div className="intro-preview-head">
-                <span><MapPinned size={16} /> 여의도 한강공원</span>
+                <span><MapPinned size={16} /> 삼성동 · 힐스테이트 2단지 주변</span>
                 <small>오늘</small>
               </div>
               <div className="intro-activity-row">

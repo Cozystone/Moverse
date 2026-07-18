@@ -77,6 +77,7 @@ export interface WorldMapSpot {
   verified?: boolean;
   closesAt?: string;
   kind?: "verified-hub" | "discovery";
+  mapStructure?: boolean;
 }
 
 export interface WorldMapEvent {
@@ -675,7 +676,7 @@ function createStructureCollection(
   selectedEventId: string | null | undefined,
 ): FeatureCollection<Polygon, StructureFeatureProperties> {
   const spotFeatures: Feature<Polygon, StructureFeatureProperties>[] = spots
-    .filter((spot) => spot.kind !== "discovery")
+    .filter((spot) => spot.kind !== "discovery" || spot.mapStructure)
     .flatMap(
     (spot) => {
       const level = spot.level ?? "active";
@@ -2065,7 +2066,7 @@ export function WorldMap({
         mapRef.current?.easeTo({ center: next, zoom: 16.2, pitch: 46, duration: 700 });
       },
       () => {
-        setLocationMessage("위치가 꺼져 있어 여의도 데모 월드를 보여드려요.");
+        setLocationMessage("위치가 꺼져 있어 삼성동 데모 월드를 보여드려요.");
         mapRef.current?.easeTo({ center: simulatedPosition, zoom: 15.7, duration: 650 });
       },
       { enableHighAccuracy: true, timeout: 7000, maximumAge: 60_000 },

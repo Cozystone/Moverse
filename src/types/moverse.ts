@@ -20,7 +20,7 @@ export type FacilityType =
 export type MoveSpotKind = "verified-hub" | "discovery";
 
 export type MoveSpotSource = {
-  id: "seoul-oa-21698" | "seoul-oa-21699" | "curated";
+  id: "seoul-oa-21698" | "seoul-oa-21699" | "openstreetmap" | "curated";
   name: string;
   url: string;
   referenceDate: string;
@@ -59,6 +59,7 @@ export type MoveSpot = {
   distanceLabel: string;
   kind?: MoveSpotKind;
   eventEligible?: boolean;
+  mapStructure?: boolean;
   source?: MoveSpotSource;
   facility?: MoveFacility;
 };

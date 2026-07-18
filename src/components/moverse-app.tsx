@@ -28,11 +28,12 @@ import {
   UserCircle,
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DEMO_SPOTS } from "@/data/demo-data";
 import {
-  SEOUL_DISCOVERY_STOPS,
-  SEOUL_DISCOVERY_STOPS_META,
-} from "@/data/seoul-stops";
+  EVENT_ELIGIBLE_SPOTS,
+  MOVE_SPOT_BY_ID,
+  MOVE_SPOTS,
+} from "@/data/move-world";
+import { SAMSEONG_HILLSTATE_CENTER } from "@/data/samseong-local-data";
 import { useGpsTracker } from "@/hooks/use-gps-tracker";
 import { useStreetMatchedRoute } from "@/hooks/use-street-matched-route";
 import { useMoverseStore } from "@/store/use-moverse-store";
@@ -51,9 +52,6 @@ const WorldMap = dynamic(() => import("./world-map").then((mod) => mod.WorldMap)
   loading: () => <MapLoading />,
 });
 
-const MAP_SPOTS: readonly MoveSpot[] = [...DEMO_SPOTS, ...SEOUL_DISCOVERY_STOPS];
-const MAP_SPOT_BY_ID = new Map(MAP_SPOTS.map((spot) => [spot.id, spot] as const));
-
 type MainTab = "map" | "activity" | "move" | "social" | "verse";
 
 const SEOUL_WIDE_DISTANCE_KM = 12;
@@ -63,10 +61,10 @@ const DEMO_MAP_PEOPLE: readonly WorldMapPerson[] = [
     id: "lumi",
     nickname: "LUMI",
     modelId: "lumi",
-    longitude: 126.93375,
-    latitude: 37.52718,
+    longitude: 127.05208,
+    latitude: 37.51279,
     visibility: "precise",
-    status: "러닝 메이트 찾는 중",
+    status: "학봉 워크 체크인 중",
     updatedAt: "방금",
     expiresAt: "21:00",
     accuracyMeters: 12,
@@ -77,10 +75,10 @@ const DEMO_MAP_PEOPLE: readonly WorldMapPerson[] = [
     id: "dash",
     nickname: "DASH",
     modelId: "dash",
-    longitude: 126.9391,
-    latitude: 37.5237,
+    longitude: 127.05984,
+    latitude: 37.51452,
     visibility: "approximate",
-    status: "주말 농구 가능",
+    status: "봉은사역 근처 이동 중",
     updatedAt: "3분 전",
     expiresAt: "20:30",
     accuracyMeters: 180,
@@ -90,10 +88,10 @@ const DEMO_MAP_PEOPLE: readonly WorldMapPerson[] = [
     id: "mint",
     nickname: "MINT",
     modelId: "mint",
-    longitude: 126.9354,
-    latitude: 37.5226,
+    longitude: 127.04738,
+    latitude: 37.51542,
     visibility: "precise",
-    status: "한강 플로깅 중",
+    status: "샘터 플로깅 준비 중",
     updatedAt: "1분 전",
     expiresAt: "20:45",
     accuracyMeters: 18,
@@ -208,13 +206,13 @@ export function MoverseApp() {
   const mapContext = useMemo(() => {
     if (!mapViewport) {
       return {
-        areaName: MAP_SPOTS[0]?.areaName ?? "서울 전역",
-        visibleSpotCount: MAP_SPOTS.length,
+        areaName: MOVE_SPOTS[0]?.areaName ?? "서울 전역",
+        visibleSpotCount: MOVE_SPOTS.length,
         visibleEventCount: store.events.length,
       };
     }
 
-    const nearestSpot = MAP_SPOTS.reduce<{ distanceKm: number; spot: MoveSpot } | null>(
+    const nearestSpot = MOVE_SPOTS.reduce<{ distanceKm: number; spot: MoveSpot } | null>(
       (nearest, spot) => {
         const distanceKm = distanceFromViewportCenterKm(mapViewport.center, spot);
         return !nearest || distanceKm < nearest.distanceKm ? { distanceKm, spot } : nearest;
@@ -311,8 +309,15 @@ export function MoverseApp() {
 
   const handleEventCreate = (draft: CreateEventInput) => {
     const sport = draft.sport;
-    const selectedEventSpot = DEMO_SPOTS.find((spot) => spot.id === draft.spotId);
-    if (!selectedEventSpot || !selectedEventSpot.verified || !selectedEventSpot.sports.includes(sport)) {
+    const selectedEventSpot = draft.spotId
+      ? MOVE_SPOT_BY_ID.get(draft.spotId)
+      : undefined;
+    if (
+      !selectedEventSpot ||
+      !selectedEventSpot.verified ||
+      selectedEventSpot.eventEligible === false ||
+      !selectedEventSpot.sports.includes(sport)
+    ) {
       setToast("종목과 위치가 확인된 스팟을 다시 선택해 주세요.");
       return;
     }
@@ -362,7 +367,7 @@ export function MoverseApp() {
     <div className={`app-viewport ${isNightPreview ? "night-preview" : ""}`}>
       <div className={`app-frame ${moveActive ? "move-mode" : ""}`}>
         <WorldMap
-          spots={MAP_SPOTS}
+          spots={MOVE_SPOTS}
           events={store.events}
           people={DEMO_MAP_PEOPLE}
           user={{
@@ -378,7 +383,7 @@ export function MoverseApp() {
             if (event) selectEvent(event);
           }}
           onSelectSpot={(mapSpot) => {
-            const spot = MAP_SPOT_BY_ID.get(mapSpot.id);
+            const spot = MOVE_SPOT_BY_ID.get(mapSpot.id);
             if (spot) {
               setSelectedSpot(spot);
               setSelectedEvent(null);
@@ -393,6 +398,10 @@ export function MoverseApp() {
           isNight={isNightPreview}
           recordedRoute={recordedRoute}
           userPosition={currentGpsPosition}
+          center={[
+            SAMSEONG_HILLSTATE_CENTER.longitude,
+            SAMSEONG_HILLSTATE_CENTER.latitude,
+          ]}
           isTracking={moveActive && !gps.isPaused}
           isUserMoving={moveActive && !gps.isPaused && gps.isMoving}
           followUser
@@ -429,7 +438,7 @@ export function MoverseApp() {
             <span>
               <strong>{mapContext.areaName}</strong>
               <small>
-                화면 {mapContext.visibleSpotCount} · 서울 {SEOUL_DISCOVERY_STOPS_META.count.toLocaleString()} STOP · 이벤트 {mapContext.visibleEventCount}
+                화면 {mapContext.visibleSpotCount} · 서울 {MOVE_SPOTS.length.toLocaleString()} STOP · 이벤트 {mapContext.visibleEventCount}
               </small>
             </span>
           </div>
@@ -577,8 +586,8 @@ export function MoverseApp() {
           onClose={() => { setCreateOpen(false); setCreateSpot(null); setActiveTab("map"); }}
           onCreate={handleEventCreate}
           availableCoin={store.coin}
-          spots={DEMO_SPOTS}
-          initialSpotName={createSpot?.name ?? DEMO_SPOTS[0].name}
+          spots={EVENT_ELIGIBLE_SPOTS}
+          initialSpotName={createSpot?.name ?? EVENT_ELIGIBLE_SPOTS[0]?.name ?? ""}
           initialSport={createSpot?.sports[0]}
         />
 
@@ -750,7 +759,7 @@ function SpotPreviewCard({
       ) : null}
       {isDiscovery && spot.source ? (
         <a className="spot-source-link" href={spot.source.url} target="_blank" rel="noreferrer">
-          서울시 출입구 데이터 · {spot.source.referenceDate} <ExternalLink size={13} />
+          {spot.source.name} · {spot.source.referenceDate} <ExternalLink size={13} />
         </a>
       ) : null}
       <div className="spot-energy"><div><span>스팟 활성도</span><b>{Math.round((spot.energy / spot.energyGoal) * 100)}%</b></div><i><em style={{ width: `${(spot.energy / spot.energyGoal) * 100}%` }} /></i></div>

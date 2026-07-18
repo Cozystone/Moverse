@@ -53,7 +53,7 @@ import {
   Zap,
 } from "lucide-react";
 import clsx from "clsx";
-import { DEMO_SPOTS } from "@/data/demo-data";
+import { MOVE_SPOTS } from "@/data/move-world";
 import type {
   MoveEvent as StoreMoveEvent,
   MoveSpot as StoreMoveSpot,
@@ -1474,7 +1474,7 @@ export function EventFlowModal({
 }: EventFlowModalProps) {
   if (!event) return null;
 
-  const spot = DEMO_SPOTS.find((candidate) => candidate.id === event.spotId);
+  const spot = MOVE_SPOTS.find((candidate) => candidate.id === event.spotId);
   const activityEvent: ActivityEvent = {
     id: event.id,
     title: event.title,
@@ -1516,7 +1516,7 @@ export function CreateEventModal(props: CreateEventModalProps) {
 }
 
 function isCompatibleEventSpot(spot: StoreMoveSpot, sport: SportType) {
-  if (!spot.verified || !spot.sports.includes(sport)) return false;
+  if (!spot.verified || spot.eventEligible === false || !spot.sports.includes(sport)) return false;
   return sport !== "basketball" && sport !== "football" ? true : Boolean(spot.facility);
 }
 

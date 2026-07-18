@@ -2,7 +2,8 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { DEMO_EVENTS, DEMO_MATES, DEMO_SPOTS } from "@/data/demo-data";
+import { DEMO_MATES } from "@/data/demo-data";
+import { MOVE_SEED_EVENTS, MOVE_SPOT_BY_ID } from "@/data/move-world";
 import type { ActivityRecord, MoveEvent, MoveMate, SportType } from "@/types/moverse";
 
 type MoverseState = {
@@ -42,23 +43,26 @@ const initialState = {
   coin: 280,
   hostXp: 68,
   rhythm: 2,
-  events: DEMO_EVENTS,
+  events: MOVE_SEED_EVENTS,
   joinedEventIds: [] as string[],
   mates: DEMO_MATES,
   activities: [] as ActivityRecord[],
 };
 
 function mergeSeedEvents(persistedEvents: MoveEvent[] | undefined) {
-  if (!persistedEvents?.length) return DEMO_EVENTS;
+  if (!persistedEvents?.length) return MOVE_SEED_EVENTS;
 
   const persistedById = new Map(persistedEvents.map((event) => [event.id, event]));
-  const seedIds = new Set(DEMO_EVENTS.map((event) => event.id));
-  const spotById = new Map(DEMO_SPOTS.map((spot) => [spot.id, spot]));
+  const seedIds = new Set(MOVE_SEED_EVENTS.map((event) => event.id));
   const userEvents = persistedEvents.filter(
     (event) => {
       if (seedIds.has(event.id)) return false;
-      const spot = spotById.get(event.spotId);
-      if (!spot?.verified || !spot.sports.includes(event.sport)) return false;
+      const spot = MOVE_SPOT_BY_ID.get(event.spotId);
+      if (
+        !spot?.verified ||
+        spot.eventEligible === false ||
+        !spot.sports.includes(event.sport)
+      ) return false;
       if ((event.sport === "basketball" || event.sport === "football") && !spot.facility) {
         return false;
       }
@@ -66,7 +70,7 @@ function mergeSeedEvents(persistedEvents: MoveEvent[] | undefined) {
       return true;
     },
   );
-  const refreshedSeedEvents = DEMO_EVENTS.map((event) => {
+  const refreshedSeedEvents = MOVE_SEED_EVENTS.map((event) => {
     const persisted = persistedById.get(event.id);
     return persisted
       ? {
