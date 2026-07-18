@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -13,7 +14,6 @@ import {
   Clock3,
   Dumbbell,
   Flag,
-  Footprints,
   LockKeyhole,
   MapPin,
   MoreHorizontal,
@@ -63,6 +63,7 @@ export type MoveAgainSchedule = {
 export type SocialPanelProps = {
   open: boolean
   onClose: () => void
+  onBump?: () => void
   mates?: SocialMate[]
   onScheduleCreated?: (schedule: MoveAgainSchedule) => void
   currentUserName?: string
@@ -338,6 +339,7 @@ function ScheduleCard({ schedule }: { schedule: MoveAgainSchedule }) {
 export function SocialPanel({
   open,
   onClose,
+  onBump,
   mates,
   onScheduleCreated,
   currentUserName = 'NOVA',
@@ -514,7 +516,7 @@ export function SocialPanel({
             aria-labelledby="social-panel-title"
             aria-modal="true"
             role="dialog"
-            className="relative flex h-full w-full max-w-[480px] flex-col overflow-hidden bg-[#f7f7f5] text-[#202522] shadow-[-12px_0_32px_rgba(18,31,24,0.2)]"
+            className="relative flex h-full w-full max-w-[480px] flex-col overflow-hidden bg-[#050706] text-[#f7faf8] shadow-[-12px_0_32px_rgba(0,0,0,0.42)]"
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
@@ -531,71 +533,63 @@ export function SocialPanel({
                   exit={{ opacity: 0, x: -12 }}
                   transition={{ duration: 0.18 }}
                 >
-                  <header className="border-b border-[#dfe5e0] bg-[#17352c] px-5 pb-5 pt-[max(1.15rem,env(safe-area-inset-top))] text-white">
+                  <header className="bg-[#050706] px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] text-white">
                     <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-[11px] font-bold text-white/75">함께 움직인 사람들</p>
-                        <h2 id="social-panel-title" className="mt-0.5 text-[24px] font-black tracking-[-0.04em]">
-                          메이트
-                        </h2>
-                      </div>
+                      <h2 id="social-panel-title" className="text-[27px] font-black tracking-[-0.05em]">
+                        메이트 <span className="text-[#caff52]">{socialMates.filter((mate) => isDmEligible(mate, blockedIds)).length}</span>
+                      </h2>
                       <button
                         type="button"
                         aria-label="소셜 패널 닫기"
                         onClick={onClose}
-                        className="grid h-10 w-10 place-items-center rounded-lg border border-white/20 text-white transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                        className="grid h-11 w-11 place-items-center rounded-xl bg-[#151a17] text-white transition hover:bg-[#202722] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#caff52]"
                       >
                         <X aria-hidden="true" className="h-5 w-5" />
                       </button>
                     </div>
 
-                    <div className="mt-4 flex items-center gap-3 border-t border-white/15 pt-4">
-                      <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#caff52] text-[#17352c]">
-                        <UserRoundCheck aria-hidden="true" className="h-5 w-5" />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-bold text-white/75">함께 움직여 연결된</p>
-                        <p className="truncate text-sm font-extrabold">{currentUserName}의 안전한 활동 네트워크</p>
-                      </div>
-                      <div className="border-l border-white/20 pl-3 text-center">
-                        <p className="text-base font-black leading-none">{socialMates.filter((mate) => isDmEligible(mate, blockedIds)).length}</p>
-                        <p className="mt-1 text-[10px] font-bold text-white/75">연결</p>
-                      </div>
-                    </div>
                   </header>
 
-                  <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4">
+                  <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-1">
+                    {onBump ? (
+                      <button
+                        type="button"
+                        onClick={onBump}
+                        className="mb-3 flex w-full items-center gap-3 rounded-2xl bg-[#111512] p-3 text-left transition hover:bg-[#171d18] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#caff52]"
+                      >
+                        <Image src="/moverse-bump-orb.png" alt="" width={58} height={58} className="h-[58px] w-[58px] scale-150 object-contain" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[10px] font-black tracking-[0.16em] text-[#56e1d2]">FACE TO FACE</span>
+                          <span className="mt-0.5 block text-xl font-black tracking-[-0.04em]">BUMP</span>
+                          <span className="block text-[11px] font-bold text-[#a4aea9]">현장에서 서로 확인</span>
+                        </span>
+                        <ChevronRight aria-hidden="true" className="h-5 w-5 text-[#caff52]" />
+                      </button>
+                    ) : null}
+
                     <div className="relative">
-                      <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#55615b]" />
+                      <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8a948f]" />
                       <label className="sr-only" htmlFor="mate-search">메이트 검색</label>
                       <input
                         id="mate-search"
                         value={searchQuery}
                         onChange={(event) => setSearchQuery(event.target.value)}
-                        placeholder="닉네임·함께한 활동으로 찾기"
-                        className="h-12 w-full rounded-xl border border-[#cbd2ce] bg-white pl-10 pr-4 text-sm font-bold outline-none transition placeholder:font-semibold placeholder:text-[#66716b] focus:border-[#2f6d55] focus:ring-2 focus:ring-[#2f6d55]/18"
+                        placeholder="메이트 검색"
+                        className="h-11 w-full rounded-xl border border-white/10 bg-[#111512] pl-10 pr-4 text-sm font-bold text-white outline-none transition placeholder:font-semibold placeholder:text-[#7f8984] focus:border-[#caff52] focus:ring-2 focus:ring-[#caff52]/15"
                       />
                     </div>
 
-                    <section aria-label="안전한 연결 안내" className="mt-3 flex gap-3 rounded-xl border border-[#b8c4bd] border-l-[3px] border-l-[#2f6d55] bg-white p-3.5">
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#caff52] text-[#17352c]">
-                        <ShieldCheck aria-hidden="true" className="h-4 w-4" />
-                      </span>
-                      <div>
-                        <p className="text-xs font-extrabold text-[#30483d]">대화는 실제 활동 후 서로 수락해야 열려요</p>
-                        <p className="mt-1 text-[11px] font-semibold leading-relaxed text-[#55615b]">먼저 공개 이벤트에서 만나고, 연결 여부는 각자 결정해요.</p>
-                      </div>
+                    <section aria-label="안전한 연결 안내" className="mt-3 flex items-center gap-2 px-1 text-[11px] font-bold text-[#a4aea9]">
+                      <ShieldCheck aria-hidden="true" className="h-4 w-4 text-[#caff52]" />
+                      <p>서로 수락한 메이트만 대화</p>
                     </section>
 
-                    <div className="mb-2 mt-5 flex items-end justify-between px-1">
-                      <div>
-                        <h3 className="text-sm font-black tracking-[-0.02em]">나의 메이트</h3>
-                        <p className="mt-0.5 text-[11px] font-semibold text-[#55615b]">함께한 활동이 관계의 시작이에요</p>
-                      </div>
-                      <span className="rounded-md bg-[#caff52] px-2 py-1 text-[10px] font-extrabold text-[#17352c]">상호 연결</span>
+                    <div className="mb-2 mt-6 flex items-end justify-between px-1">
+                      <h3 className="text-[13px] font-black tracking-[0.08em] text-[#a4aea9]">MY MATES</h3>
+                      <span className="text-xs font-black text-white">{filteredMates.length}</span>
                     </div>
 
-                    <div className="grid gap-2.5">
+                    <div className="grid gap-2">
                       {filteredMates.map((mate) => {
                         const eligible = isDmEligible(mate, blockedIds)
                         return (
@@ -603,25 +597,21 @@ export function SocialPanel({
                             key={mate.id}
                             type="button"
                             onClick={() => openConversation(mate)}
-                            className="group flex w-full items-center gap-3 rounded-xl border border-[#cbd2ce] bg-white p-3.5 text-left transition hover:border-[#789083] hover:bg-[#fafbfa] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2f6d55]"
+                            className="group flex min-h-[74px] w-full items-center gap-3 rounded-2xl bg-[#0d110f] p-3 text-left text-white transition hover:bg-[#151a17] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#caff52]"
                           >
                             <Avatar mate={mate} />
                             <span className="min-w-0 flex-1">
                               <span className="flex items-center gap-2">
                                 <span className="text-sm font-black tracking-[-0.02em]">{mate.nickname}</span>
-                                <span className="rounded-md border border-[#bec7c1] bg-white px-1.5 py-0.5 text-[10px] font-extrabold text-[#46524c]">레벨 {mate.level ?? 1}</span>
+                                <span className="text-[10px] font-black text-[#8f9994]">LV.{mate.level ?? 1}</span>
                               </span>
-                              <span className="mt-1 block truncate text-xs font-semibold text-[#55615b]">
+                              <span className="mt-1 block truncate text-xs font-semibold text-[#a4aea9]">
                                 {blockedIds.has(mate.id) ? '차단한 메이트' : mate.lastMessage ?? mate.lastActivity ?? '함께한 활동에서 다시 만나요'}
                               </span>
-                              <span className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-[#55615b]">
-                                <Footprints aria-hidden="true" className="h-3 w-3 text-[#25815e]" />
-                                함께한 활동 {mate.sharedActivities ?? 1}회
-                              </span>
                             </span>
-                            <span className="flex shrink-0 flex-col items-end gap-3">
-                              <span className="text-[11px] font-bold text-[#55615b]">{mate.lastMessageAt ?? ''}</span>
-                              <span className={`grid h-7 w-7 place-items-center rounded-lg ${eligible ? 'bg-[#17352c] text-[#caff52]' : 'bg-[#e1e4e2] text-[#5e6963]'}`}>
+                            <span className="flex shrink-0 flex-col items-end gap-2">
+                              <span className="text-[10px] font-bold text-[#7f8984]">{mate.lastMessageAt ?? ''}</span>
+                              <span className={`grid h-8 w-8 place-items-center rounded-xl ${eligible ? 'bg-[#caff52] text-[#101410]' : 'bg-[#1d231f] text-[#717b76]'}`}>
                                 {eligible ? <ChevronRight aria-hidden="true" className="h-4 w-4" /> : <LockKeyhole aria-hidden="true" className="h-3.5 w-3.5" />}
                               </span>
                             </span>
@@ -632,11 +622,11 @@ export function SocialPanel({
 
                     {filteredMates.length === 0 ? (
                       <div className="py-14 text-center">
-                        <span className="mx-auto grid h-14 w-14 place-items-center rounded-xl bg-[#17352c] text-[#caff52]">
+                        <span className="mx-auto grid h-14 w-14 place-items-center rounded-xl bg-[#151a17] text-[#caff52]">
                           <Users aria-hidden="true" className="h-6 w-6" />
                         </span>
                         <p className="mt-4 text-sm font-extrabold">찾는 메이트가 없어요</p>
-                        <p className="mt-1 text-xs font-semibold text-[#55615b]">닉네임이나 함께한 종목을 다시 확인해 보세요.</p>
+                        <p className="mt-1 text-xs font-semibold text-[#8f9994]">검색어를 다시 확인해 보세요.</p>
                       </div>
                     ) : null}
                   </main>
@@ -652,13 +642,13 @@ export function SocialPanel({
                   exit={{ opacity: 0, x: 16 }}
                   transition={{ duration: 0.18 }}
                 >
-                  <header className="border-b border-[#dfe4df] bg-white px-3 pb-3 pt-[max(0.8rem,env(safe-area-inset-top))]">
+                  <header className="border-b border-white/10 bg-[#050706] px-3 pb-3 pt-[max(0.8rem,env(safe-area-inset-top))] text-white">
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
                         aria-label="메이트 목록으로 돌아가기"
                         onClick={() => setView('mates')}
-                        className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-[#46524c] transition hover:bg-[#e7eae8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2f6d55]"
+                        className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-[#a4aea9] transition hover:bg-[#151a17] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#caff52]"
                       >
                         <ChevronLeft aria-hidden="true" className="h-5 w-5" />
                       </button>
@@ -670,18 +660,18 @@ export function SocialPanel({
                             <ShieldCheck aria-label="학생 인증 완료" className="h-3.5 w-3.5" />
                           </span>
                         </div>
-                        <p className="mt-0.5 truncate text-[11px] font-bold text-[#55615b]">함께한 활동 {activeMate.sharedActivities ?? 1}회 · {activeMate.status === 'online' ? '지금 활동 중' : '메이트'}</p>
+                        <p className="mt-0.5 truncate text-[11px] font-bold text-[#a4aea9]">함께한 활동 {activeMate.sharedActivities ?? 1}회 · {activeMate.status === 'online' ? '지금 활동 중' : '메이트'}</p>
                       </div>
                       <button
                         type="button"
                         aria-label={`${activeMate.nickname} 안전 메뉴 열기`}
                         onClick={() => setSafetyModal('menu')}
-                        className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-[#46524c] transition hover:bg-[#e7eae8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2f6d55]"
+                        className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-[#a4aea9] transition hover:bg-[#151a17] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#caff52]"
                       >
                         <MoreHorizontal aria-hidden="true" className="h-5 w-5" />
                       </button>
                     </div>
-                    <div className="mt-3 flex items-center gap-2 rounded-lg bg-[#17352c] px-3 py-2 text-[11px] font-extrabold text-white">
+                    <div className="mt-3 flex items-center gap-2 rounded-xl bg-[#151a17] px-3 py-2 text-[11px] font-extrabold text-[#caff52]">
                       <UserRoundCheck aria-hidden="true" className="h-3.5 w-3.5" />
                       {activeMate.lastActivity ?? '공개 활동'}에서 직접 만나 연결됐어요
                     </div>
@@ -689,12 +679,12 @@ export function SocialPanel({
 
                   <main
                     aria-label={`${activeMate.nickname}님과의 대화`}
-                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f2f3f1] px-4 py-4"
+                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#050706] px-4 py-4"
                   >
-                    <div className="mx-auto mb-5 flex max-w-[320px] items-start gap-2 rounded-lg border border-[#dfe4df] bg-white p-3">
-                      <LockKeyhole aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#2f6d55]" />
-                      <p className="text-[11px] font-semibold leading-relaxed text-[#55615b]">
-                        전화번호·주소·학교·실시간 위치는 보내지 마세요. 약속은 공개 활동 장소로 제안할 수 있어요.
+                    <div className="mx-auto mb-5 flex max-w-[320px] items-start gap-2 rounded-xl bg-[#111512] p-3">
+                      <LockKeyhole aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#caff52]" />
+                      <p className="text-[11px] font-semibold leading-relaxed text-[#a4aea9]">
+                        연락처·학교·실시간 위치는 보내지 마세요.
                       </p>
                     </div>
 
@@ -702,7 +692,7 @@ export function SocialPanel({
                       {activeMessages.map((message) => {
                         if (message.sender === 'system') {
                           return (
-                            <div key={message.id} className="mx-auto max-w-[310px] rounded-md border border-[#c4ccc7] bg-white px-3 py-2 text-center text-[11px] font-bold leading-relaxed text-[#55615b]">
+                            <div key={message.id} className="mx-auto max-w-[310px] rounded-lg border border-white/10 bg-[#111512] px-3 py-2 text-center text-[11px] font-bold leading-relaxed text-[#a4aea9]">
                               {message.text}
                             </div>
                           )
@@ -715,14 +705,14 @@ export function SocialPanel({
                               {message.text ? (
                                 <div
                                   aria-label={`${isMine ? currentUserName : activeMate.nickname}의 메시지`}
-                                  className={`rounded-xl px-3.5 py-2.5 text-[13px] font-semibold leading-relaxed ${isMine ? 'rounded-br-sm bg-[#28654e] text-white' : 'rounded-bl-sm border border-[#dfe4df] bg-white text-[#354139]'}`}
+                                  className={`rounded-2xl px-3.5 py-2.5 text-[13px] font-semibold leading-relaxed ${isMine ? 'rounded-br-sm bg-[#caff52] text-[#0c110d]' : 'rounded-bl-sm bg-[#151a17] text-[#f7faf8]'}`}
                                 >
                                   {message.text}
                                 </div>
                               ) : null}
                               {message.card ? <SharedCard card={message.card} /> : null}
                               {message.schedule ? <ScheduleCard schedule={message.schedule} /> : null}
-                              <p className={`mt-1 px-1 text-[10px] font-bold text-[#55615b] ${isMine ? 'text-right' : 'text-left'}`}>{message.sentAt}</p>
+                              <p className={`mt-1 px-1 text-[10px] font-bold text-[#7f8984] ${isMine ? 'text-right' : 'text-left'}`}>{message.sentAt}</p>
                             </div>
                           </div>
                         )
@@ -773,7 +763,7 @@ export function SocialPanel({
                     ) : null}
                   </AnimatePresence>
 
-                  <footer className="shrink-0 border-t border-[#dfe4df] bg-white px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2.5">
+                  <footer className="shrink-0 border-t border-white/10 bg-[#050706] px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2.5">
                     {containsPrivateInfo ? (
                       <div className="mb-2 flex items-center gap-2 rounded-xl bg-[#fff3ec] px-3 py-2 text-[10px] font-extrabold text-[#b3562e]" role="alert">
                         <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
@@ -786,7 +776,7 @@ export function SocialPanel({
                         aria-label="이벤트 또는 스팟 공유"
                         aria-expanded={showShareTray}
                         onClick={() => setShowShareTray((current) => !current)}
-                        className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#caff52] text-[#17352c] transition hover:bg-[#b8ed45] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2f6d55]"
+                        className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#caff52] text-[#0c110d] transition hover:bg-[#b8ed45] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#caff52]"
                       >
                         <Share2 aria-hidden="true" className="h-4.5 w-4.5" />
                       </button>
@@ -803,14 +793,14 @@ export function SocialPanel({
                         }}
                         rows={1}
                         placeholder="안전하게 메시지 보내기"
-                        className="min-h-11 max-h-28 flex-1 resize-none rounded-lg border border-[#cbd2ce] bg-white px-3.5 py-3 text-[13px] font-semibold leading-5 outline-none transition placeholder:font-semibold placeholder:text-[#66716b] focus:border-[#2f6d55] focus:ring-2 focus:ring-[#2f6d55]/18"
+                        className="min-h-11 max-h-28 flex-1 resize-none rounded-xl border border-white/10 bg-[#111512] px-3.5 py-3 text-[13px] font-semibold leading-5 text-white outline-none transition placeholder:font-semibold placeholder:text-[#7f8984] focus:border-[#caff52] focus:ring-2 focus:ring-[#caff52]/15"
                       />
                       <button
                         type="button"
                         aria-label="메시지 보내기"
                         onClick={sendMessage}
                         disabled={!messageDraft.trim()}
-                        className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#28654e] text-white transition hover:bg-[#1f563f] disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#28654e]"
+                        className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#caff52] text-[#0c110d] transition hover:bg-[#b8ed45] disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#caff52]"
                       >
                         <Send aria-hidden="true" className="h-4 w-4" />
                       </button>
@@ -818,7 +808,7 @@ export function SocialPanel({
                     <button
                       type="button"
                       onClick={() => setView('schedule')}
-                      className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-lg bg-[#202b25] px-4 py-3 text-xs font-extrabold text-white transition hover:bg-[#2b3a32] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#28654e]"
+                      className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#151a17] px-4 py-3 text-xs font-extrabold text-white transition hover:bg-[#202722] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#caff52]"
                     >
                       <CalendarCheck2 aria-hidden="true" className="h-4 w-4 text-[#caff52]" />
                       다음 활동 잡기

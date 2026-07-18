@@ -1,26 +1,31 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  CalendarDays,
   ChevronRight,
   CircleCheckBig,
-  CircleUserRound,
   Coins,
   Compass,
-  Footprints,
-  Map,
   MapPinned,
-  MessageCircle,
   MoonStar,
   Plus,
   ShieldCheck,
-  SunMedium,
   Users,
   X,
   Zap,
 } from "lucide-react";
+import {
+  CalendarDots,
+  ChatsCircle,
+  Lightning,
+  MapTrifold,
+  Moon,
+  PersonSimpleRun,
+  Sun,
+  UserCircle,
+} from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DEMO_SPOTS } from "@/data/demo-data";
 import { useGpsTracker } from "@/hooks/use-gps-tracker";
@@ -28,6 +33,7 @@ import { useStreetMatchedRoute } from "@/hooks/use-street-matched-route";
 import { useMoverseStore } from "@/store/use-moverse-store";
 import { MODE_LABEL, SPORT_META, type MoveEvent, type MoveSpot } from "@/types/moverse";
 import { Onboarding } from "./onboarding";
+import { BumpOverlay } from "./bump-overlay";
 import { MyVerse } from "./my-verse";
 import { CreateEventModal, EventFlowModal, type CreateEventInput } from "./activity-flow";
 import { SocialPanel } from "./social-panel";
@@ -71,6 +77,7 @@ export function MoverseApp() {
   const [verseOpen, setVerseOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [moveActive, setMoveActive] = useState(false);
+  const [bumpOpen, setBumpOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [isNightPreview, setIsNightPreview] = useState(false);
   const [mapViewport, setMapViewport] = useState<WorldMapViewport | null>(null);
@@ -213,6 +220,16 @@ export function MoverseApp() {
     if (tab === "verse") setVerseOpen(true);
   };
 
+  const openBump = () => {
+    if (isNightPreview) {
+      setToast("오늘 BUMP는 끝났어요. 내일 현장에서 다시 만나요.");
+      return;
+    }
+    setSelectedEvent(null);
+    setSelectedSpot(null);
+    setBumpOpen(true);
+  };
+
   const handleComplete = (event: MoveEvent) => {
     store.completeEvent(event);
     setToast(`${event.title} 완료 · 무브 코인 ${event.rewardCoin}개를 받았어요!`);
@@ -256,7 +273,7 @@ export function MoverseApp() {
 
   return (
     <div className={`app-viewport ${isNightPreview ? "night-preview" : ""}`}>
-      <div className="app-frame">
+      <div className={`app-frame ${moveActive ? "move-mode" : ""}`}>
         <WorldMap
           spots={DEMO_SPOTS}
           events={store.events}
@@ -282,7 +299,16 @@ export function MoverseApp() {
 
         <div className="map-top-gradient" />
         <header className="map-header">
-          <div className="brand-chip"><span className="brand-orbit small">M</span><strong>MOVERSE</strong></div>
+          <div
+            className="map-place-summary"
+            aria-label={`현재 지역: ${mapContext.areaName}, 보이는 스팟 ${mapContext.visibleSpotCount}개, 이벤트 ${mapContext.visibleEventCount}개`}
+          >
+            <span className="brand-orbit small">M</span>
+            <span>
+              <strong>{mapContext.areaName}</strong>
+              <small>{mapContext.visibleSpotCount} 스팟 · {mapContext.visibleEventCount} 이벤트</small>
+            </span>
+          </div>
           <div className="resource-row">
             <button
               className="resource-chip energy"
@@ -290,37 +316,26 @@ export function MoverseApp() {
               title="Move Energy · 오늘 움직임"
               onClick={() => setToast(`Move Energy ${store.energy}/100 · 걷기와 활동으로 채우며 매일 갱신돼요.`)}
             >
-              <Zap size={14} fill="currentColor" />
-              <span className="resource-copy"><small>오늘</small><strong>{store.energy}/100</strong></span>
+              <Lightning size={17} weight="fill" />
+              <strong>{store.energy}</strong>
             </button>
             <button
-              className="resource-chip coin"
-              aria-label={`Move Coin ${store.coin} C`}
-              title="Move Coin · 활동 보상"
-              onClick={() => setToast(`Move Coin ${store.coin} C · 활동 개설과 참가 보증금에 사용해요.`)}
+              className="resource-chip day-status"
+              aria-label={isNightPreview ? "야간 모드 해제" : "21시 활동 종료 안내"}
+              title="대면 활동 운영 시간"
+              onClick={() => setIsNightPreview((value) => !value)}
             >
-              <Coins size={14} />
-              <span className="resource-copy"><small>코인</small><strong>{store.coin} C</strong></span>
+              {isNightPreview ? <Moon size={17} weight="fill" /> : <Sun size={17} weight="fill" />}
             </button>
           </div>
         </header>
 
-        <div className="map-context-bar">
-          <div
-            className="map-context-place"
-            aria-label={`현재 지역: ${mapContext.areaName}, 보이는 스팟 ${mapContext.visibleSpotCount}개, 이벤트 ${mapContext.visibleEventCount}개`}
-          >
-            <MapPinned size={17} />
-            <span>
-              <strong>{mapContext.areaName}</strong>
-              <small>스팟 {mapContext.visibleSpotCount} · 이벤트 {mapContext.visibleEventCount}</small>
-            </span>
-          </div>
-          <button className="close-time-button" onClick={() => setIsNightPreview((value) => !value)}>
-            {isNightPreview ? <MoonStar size={15} /> : <SunMedium size={15} />}
-            <span>{isNightPreview ? "오늘 종료" : "21:00 종료"}</span>
+        {!selectedEvent && !selectedSpot && !moveActive && !isNightPreview ? (
+          <button className="bump-fab" onClick={openBump} aria-label="BUMP 현장 인증 열기">
+            <Image src="/moverse-bump-orb.png" width={58} height={58} alt="" priority />
+            <span><strong>BUMP</strong><small>현장 인증</small></span>
           </button>
-        </div>
+        ) : null}
 
         <AnimatePresence>
           {moveActive && (
@@ -331,7 +346,6 @@ export function MoverseApp() {
               accuracyMeters={gps.accuracyMeters}
               status={gps.status}
               mapMatchState={streetRoute.state}
-              rejectedPointCount={gps.rejectedPointCount}
               paused={gps.isPaused}
               onPause={() => {
                 if (gps.isPaused) gps.resume();
@@ -421,7 +435,22 @@ export function MoverseApp() {
           open={socialOpen}
           onClose={() => { setSocialOpen(false); setActiveTab("map"); }}
           currentUserName="NOVA"
+          onBump={() => {
+            setSocialOpen(false);
+            setActiveTab("map");
+            openBump();
+          }}
           onScheduleCreated={() => setToast("다음 Move 일정이 두 사람의 캘린더에 저장됐어요!")}
+        />
+
+        <BumpOverlay
+          open={bumpOpen}
+          onClose={() => setBumpOpen(false)}
+          onComplete={() => setToast("LUMI와 현장 확인 완료 · 활동을 시작할 수 있어요.")}
+          onQrFallback={() => {
+            setBumpOpen(false);
+            setToast("동적 QR 확인으로 전환했어요.");
+          }}
         />
 
         <AnimatePresence>
@@ -434,11 +463,11 @@ export function MoverseApp() {
 
 function BottomNav({ active, energy, onSelect }: { active: MainTab; energy: number; onSelect: (tab: MainTab) => void }) {
   const items: { key: MainTab; label: string; icon: React.ReactNode }[] = [
-    { key: "map", label: "지도", icon: <Map /> },
-    { key: "activity", label: "활동", icon: <CalendarDays /> },
-    { key: "move", label: "MOVE", icon: <Footprints /> },
-    { key: "social", label: "메이트", icon: <MessageCircle /> },
-    { key: "verse", label: "성장", icon: <CircleUserRound /> },
+    { key: "map", label: "지도", icon: <MapTrifold weight="bold" /> },
+    { key: "activity", label: "활동", icon: <CalendarDots weight="bold" /> },
+    { key: "move", label: "MOVE", icon: <PersonSimpleRun weight="fill" /> },
+    { key: "social", label: "메이트", icon: <ChatsCircle weight="bold" /> },
+    { key: "verse", label: "성장", icon: <UserCircle weight="bold" /> },
   ];
   return (
     <nav className="bottom-nav" aria-label="주요 메뉴">
@@ -447,6 +476,7 @@ function BottomNav({ active, energy, onSelect }: { active: MainTab; energy: numb
           key={item.key}
           className={`${active === item.key ? "active" : ""} ${item.key === "move" ? "move-nav" : ""}`}
           aria-label={item.key === "move" ? `MOVE 시작, 오늘 에너지 ${energy}/100` : item.label}
+          aria-current={active === item.key ? "page" : undefined}
           onClick={() => onSelect(item.key)}
         >
           <span>{item.icon}{item.key === "move" && <b>{energy}</b>}</span><small>{item.label}</small>
@@ -470,7 +500,7 @@ function EventPreviewCard({ event, joined, onClose, onOpen }: { event: MoveEvent
         <span><Compass size={15} /> {event.distanceLabel}</span>
         <span><Coins size={15} /> +{event.rewardCoin}</span>
       </div>
-      <button className="card-primary" onClick={onOpen}>{joined ? "체크인 준비하기" : "자세히 보고 참가하기"}<ChevronRight size={18} /></button>
+      <button className="card-primary" onClick={onOpen}>{joined ? "체크인" : "참가하기"}<ChevronRight size={18} /></button>
     </motion.article>
   );
 }
@@ -479,7 +509,7 @@ function SpotPreviewCard({ spot, events, onClose, onEvent }: { spot: MoveSpot; e
   return (
     <motion.article className="map-preview-card spot-card" initial={{ y: 45, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 35, opacity: 0 }}>
       <button className="preview-close" onClick={onClose} aria-label="닫기"><X size={17} /></button>
-      <div className="spot-heading"><span className={`spot-level-icon ${spot.level}`}><MapPinned size={23} /></span><div><small>인증 스팟 · 레벨 {spot.levelNumber}</small><h3>{spot.name}</h3><p>{spot.description}</p></div></div>
+      <div className="spot-heading"><span className={`spot-level-icon ${spot.level}`}><MapPinned size={23} /></span><div><small>인증 스팟 · Lv.{spot.levelNumber}</small><h3>{spot.name}</h3><p>{spot.description}</p></div></div>
       <div className="spot-energy"><div><span>스팟 활성도</span><b>{Math.round((spot.energy / spot.energyGoal) * 100)}%</b></div><i><em style={{ width: `${(spot.energy / spot.energyGoal) * 100}%` }} /></i></div>
       {events.length ? <button className="card-primary" onClick={() => onEvent(events[0])}>{events[0].title}<ChevronRight size={18} /></button> : <button className="card-secondary"><Plus size={17} /> 이곳에서 활동 열기</button>}
     </motion.article>
@@ -513,7 +543,6 @@ function MoveSession({
   accuracyMeters,
   status,
   mapMatchState,
-  rejectedPointCount,
   paused,
   onPause,
   onFinish,
@@ -524,7 +553,6 @@ function MoveSession({
   accuracyMeters: number | null;
   status: string;
   mapMatchState: string;
-  rejectedPointCount: number;
   paused: boolean;
   onPause: () => void;
   onFinish: () => void;
@@ -541,10 +569,10 @@ function MoveSession({
           : "고정밀 거리 기록 중";
   const routeLabel =
     mapMatchState === "matched"
-      ? "골목·보행로 경로 보정 완료"
+      ? "경로 보정됨"
       : mapMatchState === "matching"
-        ? "도로망에 경로를 맞추는 중"
-        : "필터링된 실시간 GPS 경로";
+        ? "경로 보정 중"
+        : "실시간 GPS";
   const canPause = !["requesting-permission", "idle"].includes(status);
 
   return (
@@ -557,7 +585,7 @@ function MoveSession({
       </div>
       <div className="move-destination">
         <span><SportIcon sport="running" size={21} /></span>
-        <p><small>{routeLabel}</small><strong>정확도 {accuracyMeters ? `±${Math.round(accuracyMeters)}m` : "측정 중"} · GPS 잡음 {rejectedPointCount}개 제외</strong></p>
+        <p><small>{routeLabel}</small><strong>{accuracyMeters ? `정확도 ±${Math.round(accuracyMeters)}m` : "GPS 정확도 측정 중"}</strong></p>
         <b>+{reward} E</b>
       </div>
       <div className="move-actions"><button onClick={onPause} disabled={!canPause}>{paused ? "기록 계속" : "일시정지"}</button><button onClick={onFinish}>MOVE 종료</button></div>
@@ -570,7 +598,7 @@ function ActivityPanel({ joined, allEvents, onClose, onEvent, onCreate }: { join
   return (
     <motion.section className="full-panel activity-panel" initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}>
       <header className="panel-header">
-        <div><small>참가 예정과 활동 기록</small><h2>활동</h2></div>
+        <div><small>MOVE PLAN</small><h2>활동</h2></div>
         <div className="panel-header-actions">
           <button className="panel-create-button" onClick={onCreate}><Plus size={16} /> 활동 열기</button>
           <button className="round-icon-btn" onClick={onClose} aria-label="활동 화면 닫기"><X /></button>
@@ -581,9 +609,9 @@ function ActivityPanel({ joined, allEvents, onClose, onEvent, onCreate }: { join
           <div className="next-label"><i /> 다음 활동</div>
           <span className="hero-sport"><SportIcon sport="running" size={48} /></span>
           <div><small>오늘 19:40 · 러닝 게이트</small><h3>선셋 20분<br />런앤워크</h3><p>시작까지 <strong>42분</strong></p></div>
-          <button onClick={() => onEvent(allEvents[0])}>체크인 준비 <ChevronRight /></button>
+          <button onClick={() => onEvent(allEvents[0])}>체크인 <ChevronRight /></button>
         </section>
-        <div className="weekly-rhythm-mini"><div><span><Zap fill="currentColor" /> 주간 활동 목표</span><strong>이번 주 2/3</strong></div><div className="mini-progress"><i style={{ width: "67%" }} /></div><p>한 번 더 움직이면 이번 주 목표를 달성해요.</p></div>
+        <div className="weekly-rhythm-mini"><div><span><Zap fill="currentColor" /> 주간 목표</span><strong>2/3</strong></div><div className="mini-progress"><i style={{ width: "67%" }} /></div></div>
         <section className="activity-section">
           <div className="section-row"><h3>참가 예정</h3><span>{events.length}개</span></div>
           <div className="event-list">
@@ -593,7 +621,7 @@ function ActivityPanel({ joined, allEvents, onClose, onEvent, onCreate }: { join
             })}
           </div>
         </section>
-        <section className="safety-banner"><ShieldCheck /><div><strong>정확한 위치는 현장 인증 전까지 비공개</strong><p>모든 만남은 인증된 활동 스팟에서 시작돼요.</p></div></section>
+        <section className="safety-banner"><ShieldCheck /><div><strong>위치는 체크인 전 비공개</strong></div></section>
       </div>
     </motion.section>
   );
